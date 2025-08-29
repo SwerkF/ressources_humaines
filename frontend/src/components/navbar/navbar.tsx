@@ -137,7 +137,6 @@ export default function Navbar() {
                                                     alt="Avatar utilisateur"
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
-                                                        // Fallback en cas d'erreur de chargement d'image
                                                         const target = e.target as HTMLImageElement;
                                                         const displayName = user?.role === 'candidat' 
                                                             ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
