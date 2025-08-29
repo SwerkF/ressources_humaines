@@ -336,9 +336,6 @@ class MeView(generics.GenericAPIView):
         return user
 
     def get(self, request):
-        """
-        Récupère les informations du profil de l'utilisateur connecté
-        """
         obj = self.get_object()
         if not obj:
             return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
@@ -347,9 +344,6 @@ class MeView(generics.GenericAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request):
-        """
-        Met à jour complètement le profil de l'utilisateur connecté
-        """
         obj = self.get_object()
         if not obj:
             return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
@@ -361,9 +355,6 @@ class MeView(generics.GenericAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request):
-        """
-        Met à jour partiellement le profil de l'utilisateur connecté
-        """
         obj = self.get_object()
         if not obj:
             return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
@@ -375,9 +366,6 @@ class MeView(generics.GenericAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request):
-        """
-        Supprime le profil de l'utilisateur connecté
-        """
         obj = self.get_object()
         if not obj:
             return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
@@ -461,6 +449,102 @@ class CandidatureViewSet(viewsets.ModelViewSet):
         candidatures = Candidature.objects.filter(candidat__pk=user.pk)
         serializer = self.get_serializer(candidatures, many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsRecruteurOrAdmin])
+    def with_ai_scores(self, request):
+        user = request.user
+        if getattr(user, 'role', None) not in ['admin', 'recruteur']:
+            return Response(
+                {'detail': 'Seuls les recruteurs et admins peuvent accéder à cet endpoint.'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Filtrer par recruteur si nécessaire
+        if getattr(user, 'role', None) == 'recruteur':
+            candidatures = Candidature.objects.filter(job__recruteur__pk=user.pk)
+        else:
+            candidatures = Candidature.objects.all()
+        
+        # Précharger les relations et scores IA
+        candidatures = candidatures.select_related(
+            'candidat', 'job', 'job__recruteur'
+        ).prefetch_related('ai_analysis')
+        
+        # Trier par score IA (meilleur score en premier)
+        candidatures_with_scores = []
+        for candidature in candidatures:
+            try:
+                ai_analysis = candidature.ai_analysis
+                if ai_analysis and ai_analysis.status == 'completed':
+                    # Score disponible
+                    candidatures_with_scores.append({
+                        'id': candidature.id,
+                        'candidat': {
+                            'id': candidature.candidat.id,
+                            'nom': candidature.candidat.nom,
+                            'prenom': candidature.candidat.prenom,
+                            'email': candidature.candidat.email
+                        },
+                        'job': {
+                            'id': candidature.job.id,
+                            'titre': candidature.job.titre,
+                            'entreprise': candidature.job.recruteur.nom_entreprise
+                        },
+                        'statut': candidature.statut,
+                        'date_candidature': candidature.date_candidature,
+                        'ai_scores': {
+                            'overall_score': int(ai_analysis.overall_score * 100) if ai_analysis.overall_score else 0,
+                            'skill_score': int(ai_analysis.skill_score * 100) if ai_analysis.skill_score else 0,
+                            'experience_score': int(ai_analysis.experience_score * 100) if ai_analysis.experience_score else 0,
+                            'education_score': int(ai_analysis.education_score * 100) if ai_analysis.education_score else 0,
+                            'status': ai_analysis.status,
+                            'analysis_date': ai_analysis.analysis_date
+                        }
+                    })
+                else:
+                    # Pas de score IA disponible
+                    candidatures_with_scores.append({
+                        'id': candidature.id,
+                        'candidat': {
+                            'id': candidature.candidat.id,
+                            'nom': candidature.candidat.nom,
+                            'prenom': candidature.candidat.prenom,
+                            'email': candidature.candidat.email
+                        },
+                        'job': {
+                            'id': candidature.job.id,
+                            'titre': candidature.job.titre,
+                            'entreprise': candidature.job.recruteur.nom_entreprise
+                        },
+                        'statut': candidature.statut,
+                        'date_candidature': candidature.date_candidature,
+                        'ai_scores': {
+                            'overall_score': None,
+                            'skill_score': None,
+                            'experience_score': None,
+                            'education_score': None,
+                            'status': ai_analysis.status if ai_analysis else 'not_started',
+                            'analysis_date': None
+                        }
+                    })
+            except Exception as e:
+                logger.error(f"Erreur lors du traitement de la candidature {candidature.id}: {e}")
+                continue
+        
+        # Trier par score global (meilleur en premier, puis par date)
+        candidatures_with_scores.sort(
+            key=lambda x: (
+                x['ai_scores']['overall_score'] if x['ai_scores']['overall_score'] is not None else -1,
+                x['date_candidature']
+            ),
+            reverse=True
+        )
+        
+        return Response({
+            'candidatures': candidatures_with_scores,
+            'total': len(candidatures_with_scores),
+            'message': 'Candidatures avec scores IA récupérées avec succès'
+        })
 
 
 class JobViewSet(viewsets.ModelViewSet):
@@ -500,9 +584,6 @@ class JobViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def publiques(self, request):
-        """
-        Récupère toutes les offres d'emploi publiques (actives) avec pagination
-        """
         queryset = Job.objects.filter(active=True).order_by('-date_creation')
         
         # Appliquer la pagination DRF
@@ -518,9 +599,6 @@ class JobViewSet(viewsets.ModelViewSet):
 @api_view(['GET'])
 @permission_classes([IsAdmin])
 def admin_dashboard_stats(request):
-    """
-    Endpoint pour récupérer toutes les statistiques du dashboard administrateur
-    """
     try:
         total_users = CustomUser.objects.count()
         total_candidats = Candidat.objects.count()

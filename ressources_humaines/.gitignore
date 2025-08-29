@@ -11,3 +11,4 @@ __pycache__/
 venv/
 .DS_Store
 db.sqlite3
+.env

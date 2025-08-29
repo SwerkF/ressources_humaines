@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, Candidat, Recruteur, Candidature, Job
+from .models import CustomUser, Candidat, Recruteur, Candidature, Job, CVAnalysis
 
 
 @admin.register(CustomUser)
@@ -94,3 +94,34 @@ class JobAdmin(admin.ModelAdmin):
     def nombre_candidatures(self, obj):
         return obj.candidatures.count()
     nombre_candidatures.short_description = 'Nb candidatures'
+
+
+@admin.register(CVAnalysis)
+class CVAnalysisAdmin(admin.ModelAdmin):
+    list_display = ('candidature', 'overall_score', 'skill_score', 'experience_score', 'education_score', 'analysis_date')
+    list_filter = ('analysis_date', 'overall_score')
+    search_fields = ('candidature__candidat__email', 'candidature__job__titre')
+    readonly_fields = ('candidature', 'analysis_date', 'processing_time', 'skills', 'experience', 'education')
+    
+    fieldsets = (
+        ('Informations générales', {
+            'fields': ('candidature', 'analysis_date')
+        }),
+        ('Scores', {
+            'fields': ('overall_score', 'skill_score', 'experience_score', 'education_score')
+        }),
+        ('Données extraites', {
+            'fields': ('skills', 'experience', 'education'),
+            'classes': ('collapse',)
+        }),
+        ('Métadonnées', {
+            'fields': ('processing_time',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        return False  # Les analyses sont créées automatiquement
+    
+    def has_delete_permission(self, request, obj=None):
+        return False  # Empêcher la suppression des analyses

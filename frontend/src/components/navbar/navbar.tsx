@@ -105,7 +105,7 @@ export default function Navbar() {
                                             </Button>
                                         )}
 
-                                        {user?.role === "admin" && (
+                                        {user?.role === "recruteur" && (
                                             <Button variant="ghost" size="sm" asChild>
                                                 <Link to="/dashboard">
                                                     <Briefcase className="h-4 w-4 mr-2" />
@@ -137,7 +137,6 @@ export default function Navbar() {
                                                     alt="Avatar utilisateur"
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
-                                                        // Fallback en cas d'erreur de chargement d'image
                                                         const target = e.target as HTMLImageElement;
                                                         const displayName = user?.role === 'candidat' 
                                                             ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
