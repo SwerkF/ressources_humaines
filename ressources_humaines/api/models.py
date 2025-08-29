@@ -168,3 +168,75 @@ class Candidature(models.Model):
     
     def __str__(self):
         return f"{self.candidat.email} - {self.job.titre} - {self.get_statut_display()}"
+
+
+class CVAnalysis(models.Model):
+    """
+    Modèle pour stocker les résultats d'analyse IA des CV
+    """
+    candidature = models.OneToOneField(
+        Candidature,
+        on_delete=models.CASCADE,
+        related_name='ai_analysis'
+    )
+    
+    # Scores de pertinence (0.0 à 1.0)
+    overall_score = models.FloatField(
+        help_text='Score global de pertinence (0-1)',
+        null=True,
+        blank=True
+    )
+    skill_score = models.FloatField(
+        help_text='Score de pertinence des compétences (0-1)',
+        null=True,
+        blank=True
+    )
+    experience_score = models.FloatField(
+        help_text='Score de pertinence de l\'expérience (0-1)',
+        null=True,
+        blank=True
+    )
+    education_score = models.FloatField(
+        help_text='Score de pertinence de la formation (0-1)',
+        null=True,
+        blank=True
+    )
+    
+    # Informations extraites
+    skills = models.TextField(
+        default="[]",
+        help_text='Liste des compétences extraites du CV (format JSON string)'
+    )
+    experience = models.TextField(
+        default="[]",
+        help_text='Informations d\'expérience extraites (format JSON string)'
+    )
+    education = models.TextField(
+        default="[]",
+        help_text='Informations de formation extraites (format JSON string)'
+    )
+    
+    # Métadonnées
+    analysis_date = models.DateTimeField(auto_now_add=True)
+    processing_time = models.FloatField(
+        help_text='Temps de traitement en secondes',
+        null=True,
+        blank=True
+    )
+    
+    # Champ manquant dans la base
+    raw_analysis = models.TextField(
+        default="",
+        help_text='Analyse brute de l\'IA',
+        blank=True
+    )
+    
+    class Meta:
+        ordering = ['-analysis_date']
+        verbose_name = 'Analyse IA de CV'
+        verbose_name_plural = 'Analyses IA de CV'
+    
+    def __str__(self):
+        if self.overall_score is not None:
+            return f"Analyse {self.candidature} - Score: {self.overall_score:.2f}"
+        return f"Analyse {self.candidature} - En cours"
