@@ -336,9 +336,6 @@ class MeView(generics.GenericAPIView):
         return user
 
     def get(self, request):
-        """
-        Récupère les informations du profil de l'utilisateur connecté
-        """
         obj = self.get_object()
         if not obj:
             return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
@@ -347,9 +344,6 @@ class MeView(generics.GenericAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request):
-        """
-        Met à jour complètement le profil de l'utilisateur connecté
-        """
         obj = self.get_object()
         if not obj:
             return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
@@ -361,9 +355,6 @@ class MeView(generics.GenericAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request):
-        """
-        Met à jour partiellement le profil de l'utilisateur connecté
-        """
         obj = self.get_object()
         if not obj:
             return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
@@ -375,9 +366,6 @@ class MeView(generics.GenericAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request):
-        """
-        Supprime le profil de l'utilisateur connecté
-        """
         obj = self.get_object()
         if not obj:
             return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
@@ -464,9 +452,6 @@ class CandidatureViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'], permission_classes=[IsRecruteurOrAdmin])
     def with_ai_scores(self, request):
-        """
-        Retourne les candidatures avec leurs scores IA pour le recruteur
-        """
         user = request.user
         if getattr(user, 'role', None) not in ['admin', 'recruteur']:
             return Response(
@@ -599,9 +584,6 @@ class JobViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def publiques(self, request):
-        """
-        Récupère toutes les offres d'emploi publiques (actives) avec pagination
-        """
         queryset = Job.objects.filter(active=True).order_by('-date_creation')
         
         # Appliquer la pagination DRF
@@ -617,9 +599,6 @@ class JobViewSet(viewsets.ModelViewSet):
 @api_view(['GET'])
 @permission_classes([IsAdmin])
 def admin_dashboard_stats(request):
-    """
-    Endpoint pour récupérer toutes les statistiques du dashboard administrateur
-    """
     try:
         total_users = CustomUser.objects.count()
         total_candidats = Candidat.objects.count()

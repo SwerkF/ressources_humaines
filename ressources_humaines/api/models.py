@@ -171,9 +171,6 @@ class Candidature(models.Model):
 
 
 class CVAnalysis(models.Model):
-    """
-    Modèle pour stocker les résultats d'analyse IA des CV
-    """
     candidature = models.OneToOneField(
         Candidature,
         on_delete=models.CASCADE,

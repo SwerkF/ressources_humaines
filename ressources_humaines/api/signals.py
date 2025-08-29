@@ -15,14 +15,6 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=Candidature)
 def trigger_ai_analysis(sender, instance, created, **kwargs):
-    """
-    Déclenche automatiquement l'analyse IA quand une candidature est créée
-    
-    Args:
-        sender: Modèle qui a déclenché le signal
-        instance: Instance de Candidature créée
-        created: True si c'est une nouvelle création
-    """
     if not created:
         return  # Seulement pour les nouvelles candidatures
     
@@ -54,9 +46,6 @@ def trigger_ai_analysis(sender, instance, created, **kwargs):
 
 
 def _run_ai_analysis(cv_analysis: CVAnalysis, candidature: Candidature):
-    """
-    Exécute l'analyse IA avec un simple appel à Mistral
-    """
     try:
         logger.info(f"Début de l'analyse IA pour candidature {candidature.id}")
         
