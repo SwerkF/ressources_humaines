@@ -6,6 +6,9 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authtoken.models import Token
 from django.db import IntegrityError
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .models import CustomUser, Candidat, Recruteur, Candidature, Job
 from .serializers import (
@@ -211,23 +214,61 @@ class RecruteurRegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
 
     def create(self, request, *args, **kwargs):
+        logger.info(f"🚀 [RecruteurRegisterView] Tentative d'inscription recruteur")
+        logger.debug(f"📋 [RecruteurRegisterView] Données reçues: {list(request.data.keys())}")
+        logger.debug(f"📋 [RecruteurRegisterView] Content-Type: {request.content_type}")
+        
         try:
+            # Log des données reçues (sans les informations sensibles)
+            safe_data = {k: v for k, v in request.data.items() if k not in ['password']}
+            logger.debug(f"📊 [RecruteurRegisterView] Données (sans mot de passe): {safe_data}")
+            
             ser = self.get_serializer(data=request.data)
-            ser.is_valid(raise_exception=True)
+            logger.debug(f"🔍 [RecruteurRegisterView] Sérialiseur créé")
+            
+            if not ser.is_valid():
+                logger.error(f"❌ [RecruteurRegisterView] Erreurs de validation: {ser.errors}")
+                return Response({
+                    'detail': 'Données de formulaire invalides',
+                    'errors': ser.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            logger.info(f"✅ [RecruteurRegisterView] Validation réussie")
+            
             user = ser.save()
-            token, _ = Token.objects.get_or_create(user=user)
+            logger.info(f"💾 [RecruteurRegisterView] Utilisateur créé avec ID: {user.id}")
+            
+            token, created = Token.objects.get_or_create(user=user)
+            if created:
+                logger.info(f"🔑 [RecruteurRegisterView] Nouveau token créé")
+            else:
+                logger.info(f"🔑 [RecruteurRegisterView] Token existant réutilisé")
+            
+            logger.info(f"🎉 [RecruteurRegisterView] Inscription réussie pour: {user.email}")
+            
             return Response({
                 'token': token.key, 
                 'user': RecruteurSerializer(user).data,
                 'message': 'Recruteur créé avec succès'
             }, status=status.HTTP_201_CREATED)
-        except IntegrityError:
+            
+        except IntegrityError as e:
+            logger.error(f"🚫 [RecruteurRegisterView] Erreur d'intégrité: {str(e)}")
             return Response({
                 'detail': 'Un utilisateur avec cet email ou SIRET existe déjà.'
             }, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
+            
+        except ValidationError as e:
+            logger.error(f"🚫 [RecruteurRegisterView] Erreur de validation Django: {str(e)}")
             return Response({
-                'detail': 'Erreur lors de la création du compte.'
+                'detail': f'Erreur de validation: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.error(f"💥 [RecruteurRegisterView] Erreur inattendue: {type(e).__name__}: {str(e)}")
+            logger.error(f"📍 [RecruteurRegisterView] Traceback:", exc_info=True)
+            return Response({
+                'detail': f'Erreur lors de la création du compte: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -236,17 +277,30 @@ class LoginView(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        logger.info(f"🔐 [LoginView] Tentative de connexion reçue")
+        logger.debug(f"📋 [LoginView] Données reçues: {request.data}")
+        
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
+        
+        logger.info(f"🔍 [LoginView] Authentification pour: {email}")
 
         user = authenticate(request, username=email, password=password)
         if not user:
+            logger.warning(f"❌ [LoginView] Échec d'authentification pour: {email}")
             return Response({'detail': 'Identifiants invalides.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        token, _ = Token.objects.get_or_create(user=user)
+        logger.info(f"✅ [LoginView] Authentification réussie pour: {email} (rôle: {user.role})")
+        token, created = Token.objects.get_or_create(user=user)
+        if created:
+            logger.info(f"🔑 [LoginView] Nouveau token créé pour: {email}")
+        else:
+            logger.info(f"🔑 [LoginView] Token existant utilisé pour: {email}")
+            
         data = {'token': token.key, 'role': user.role, 'id': user.id}
+        logger.info(f"📤 [LoginView] Réponse envoyée: {{'token': '***', 'role': '{user.role}', 'id': {user.id}}}")
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -258,31 +312,80 @@ class LogoutView(generics.GenericAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class MeView(generics.RetrieveAPIView):
+class MeView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        user = request.user
+    def get_serializer_class(self):
+        user = self.request.user
         if user.role == 'candidat':
-            obj = Candidat.objects.filter(pk=user.pk).first()
-            return Response(CandidatSerializer(obj).data if obj else {}, status=200)
-        if user.role == 'recruteur':
-            obj = Recruteur.objects.filter(pk=user.pk).first()
-            return Response(RecruteurSerializer(obj).data if obj else {}, status=200)
-        return Response(UserSerializer(user).data, status=200)
+            return CandidatSerializer
+        elif user.role == 'recruteur':
+            return RecruteurSerializer
+        return UserSerializer
+
+    def get_object(self):
+        user = self.request.user
+        if user.role == 'candidat':
+            return Candidat.objects.filter(pk=user.pk).first()
+        elif user.role == 'recruteur':
+            return Recruteur.objects.filter(pk=user.pk).first()
+        return user
+
+    def get(self, request):
+        """
+        Récupère les informations du profil de l'utilisateur connecté
+        """
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = self.get_serializer(obj)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def put(self, request):
+        """
+        Met à jour complètement le profil de l'utilisateur connecté
+        """
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(obj, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request):
+        """
+        Met à jour partiellement le profil de l'utilisateur connecté
+        """
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(obj, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request):
+        """
+        Supprime le profil de l'utilisateur connecté
+        """
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class CandidatureViewSet(viewsets.ModelViewSet):
     serializer_class = CandidatureSerializer
     permission_classes = [IsCandidatOwnerOrRecruteurOrAdmin]
 
-    def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return Candidature.objects.none()
-        
-        user_role = getattr(user, 'role', None)
-        
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
@@ -393,6 +496,17 @@ class JobViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def publiques(self, request):
-        jobs = Job.objects.filter(active=True)
-        serializer = self.get_serializer(jobs, many=True)
+        """
+        Récupère toutes les offres d'emploi publiques (actives) avec pagination
+        """
+        queryset = Job.objects.filter(active=True).order_by('-date_creation')
+        
+        # Appliquer la pagination DRF
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        # Fallback si pas de pagination configurée
+        serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
