@@ -105,7 +105,7 @@ export default function Navbar() {
                                             </Button>
                                         )}
 
-                                        {user?.role === "admin" && (
+                                        {user?.role === "recruteur" && (
                                             <Button variant="ghost" size="sm" asChild>
                                                 <Link to="/dashboard">
                                                     <Briefcase className="h-4 w-4 mr-2" />
