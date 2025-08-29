@@ -8,6 +8,6 @@ __pycache__/
 *.pyzw
 *.pyzwz
 *.pyzwzw
-venv/
+.venv/
 .DS_Store
-settings.json
+.vscode/

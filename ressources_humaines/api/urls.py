@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    UserViewSet, CandidatViewSet, RecruteurViewSet,
+    UserViewSet, CandidatViewSet, RecruteurViewSet, CandidatureViewSet, JobViewSet,
     CandidatRegisterView, RecruteurRegisterView,
     LoginView, LogoutView, MeView
 )
@@ -10,6 +10,8 @@ router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'candidats', CandidatViewSet, basename='candidat')
 router.register(r'recruteurs', RecruteurViewSet, basename='recruteur')
+router.register(r'candidatures', CandidatureViewSet, basename='candidature')
+router.register(r'jobs', JobViewSet, basename='job')
 
 urlpatterns = [
     path('auth/register/candidat/', CandidatRegisterView.as_view(), name='register-candidat'),

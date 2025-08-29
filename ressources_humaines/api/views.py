@@ -7,14 +7,85 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authtoken.models import Token
 from django.db import IntegrityError
 
-from .models import CustomUser, Candidat, Recruteur
+from .models import CustomUser, Candidat, Recruteur, Candidature, Job
 from .serializers import (
-    UserSerializer, CandidatSerializer, RecruteurSerializer, LoginSerializer
+    UserSerializer, CandidatSerializer, RecruteurSerializer, LoginSerializer, 
+    CandidatureSerializer, JobSerializer, CandidatureUpdateSerializer
 )
 
 class IsAdmin(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and getattr(request.user, 'role', None) == 'admin'
+
+
+class IsRecruteurOrAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return (request.user.is_authenticated and 
+                getattr(request.user, 'role', None) in ['admin', 'recruteur'])
+
+
+class IsCandidatOwnerOrRecruteurOrAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        
+        user_role = getattr(request.user, 'role', None)
+        action = getattr(view, 'action', None)
+        
+        if action == 'create':
+            return user_role == 'candidat'
+        
+        if action == 'list':
+            return user_role in ['admin', 'recruteur', 'candidat']
+        
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        user_role = getattr(request.user, 'role', None)
+        
+        if user_role == 'admin':
+            return True
+        
+        if user_role == 'recruteur':
+            if hasattr(obj, 'job') and obj.job.recruteur.pk == request.user.pk:
+                return True
+            return False
+        
+        if user_role == 'candidat':
+            return obj.candidat.pk == request.user.pk
+        
+        return False
+
+
+class IsRecruteurOwnerOrAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        
+        user_role = getattr(request.user, 'role', None)
+        action = getattr(view, 'action', None)
+        
+        if action == 'create':
+            return user_role == 'recruteur'
+        
+        if action == 'list':
+            return True
+        
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        user_role = getattr(request.user, 'role', None)
+        
+        if user_role == 'admin':
+            return True
+        
+        if user_role == 'recruteur':
+            return obj.recruteur.pk == request.user.pk
+        
+        if request.method in ['GET', 'HEAD', 'OPTIONS']:
+            return True
+        
+        return False
 
 
 class IsAdminOrSelf(permissions.BasePermission):
@@ -199,3 +270,129 @@ class MeView(generics.RetrieveAPIView):
             obj = Recruteur.objects.filter(pk=user.pk).first()
             return Response(RecruteurSerializer(obj).data if obj else {}, status=200)
         return Response(UserSerializer(user).data, status=200)
+
+
+class CandidatureViewSet(viewsets.ModelViewSet):
+    serializer_class = CandidatureSerializer
+    permission_classes = [IsCandidatOwnerOrRecruteurOrAdmin]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return Candidature.objects.none()
+        
+        user_role = getattr(user, 'role', None)
+        
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return Candidature.objects.none()
+        
+        user_role = getattr(user, 'role', None)
+        
+        if user_role == 'admin':
+            return Candidature.objects.all()
+        
+        if user_role == 'recruteur':
+            return Candidature.objects.filter(job__recruteur__pk=user.pk)
+        
+        if user_role == 'candidat':
+            return Candidature.objects.filter(candidat__pk=user.pk)
+        
+        return Candidature.objects.none()
+
+    def get_serializer_class(self):
+        if (self.action in ['update', 'partial_update'] and 
+            getattr(self.request.user, 'role', None) == 'recruteur'):
+            return CandidatureUpdateSerializer
+        return CandidatureSerializer
+
+    def perform_create(self, serializer):
+        candidat = Candidat.objects.get(pk=self.request.user.pk)
+        serializer.save(candidat=candidat)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        user_role = getattr(request.user, 'role', None)
+        
+        if user_role == 'candidat':
+            if 'statut' in request.data:
+                return Response(
+                    {'detail': 'Les candidats ne peuvent pas modifier le statut de leur candidature.'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        elif user_role == 'recruteur':
+            if not hasattr(instance, 'job') or instance.job.recruteur.pk != request.user.pk:
+                return Response(
+                    {'detail': 'Vous ne pouvez modifier que les candidatures de vos jobs.'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        user_role = getattr(request.user, 'role', None)
+        
+        if user_role == 'admin' or (user_role == 'candidat' and instance.candidat.pk == request.user.pk):
+            return super().destroy(request, *args, **kwargs)
+        
+        return Response(
+            {'detail': 'Vous n\'avez pas la permission de supprimer cette candidature.'}, 
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def my_candidatures(self, request):
+        user = request.user
+        if getattr(user, 'role', None) != 'candidat':
+            return Response(
+                {'detail': 'Seuls les candidats peuvent accéder à cet endpoint.'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        candidatures = Candidature.objects.filter(candidat__pk=user.pk)
+        serializer = self.get_serializer(candidatures, many=True)
+        return Response(serializer.data)
+
+
+class JobViewSet(viewsets.ModelViewSet):
+    serializer_class = JobSerializer
+    permission_classes = [IsRecruteurOwnerOrAdmin]
+
+    def get_queryset(self):
+        user = self.request.user
+        user_role = getattr(user, 'role', None) if user.is_authenticated else None
+        
+        if user_role == 'admin':
+            return Job.objects.all()
+        
+        if user_role == 'recruteur':
+            return Job.objects.filter(recruteur__pk=user.pk)
+        
+        return Job.objects.filter(active=True)
+
+    def perform_create(self, serializer):
+        recruteur = Recruteur.objects.get(pk=self.request.user.pk)
+        serializer.save(recruteur=recruteur)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsRecruteurOrAdmin])
+    def candidatures(self, request, pk=None):
+        job = self.get_object()
+        user_role = getattr(request.user, 'role', None)
+        
+        if user_role == 'recruteur' and job.recruteur.pk != request.user.pk:
+            return Response(
+                {'detail': 'Vous ne pouvez voir que les candidatures de vos propres jobs.'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        candidatures = job.candidatures.all()
+        serializer = CandidatureSerializer(candidatures, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    def publiques(self, request):
+        jobs = Job.objects.filter(active=True)
+        serializer = self.get_serializer(jobs, many=True)
+        return Response(serializer.data)

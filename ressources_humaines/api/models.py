@@ -74,3 +74,95 @@ class Recruteur(CustomUser):
     def save(self, *args, **kwargs):
         self.role = 'recruteur'
         return super().save(*args, **kwargs)
+
+
+class Job(models.Model):
+    recruteur = models.ForeignKey(
+        Recruteur,
+        on_delete=models.CASCADE,
+        related_name='jobs'
+    )
+    titre = models.CharField(max_length=255)
+    description = models.TextField()
+    exigences = models.TextField(
+        help_text='Compétences et qualifications requises'
+    )
+    type_contrat = models.CharField(
+        max_length=50,
+        choices=[
+            ('CDI', 'CDI'),
+            ('CDD', 'CDD'),
+            ('Stage', 'Stage'),
+            ('Freelance', 'Freelance'),
+            ('Alternance', 'Alternance'),
+        ]
+    )
+    salaire_min = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Salaire minimum en euros'
+    )
+    salaire_max = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Salaire maximum en euros'
+    )
+    localisation = models.CharField(max_length=255)
+    date_creation = models.DateTimeField(auto_now_add=True)
+    date_expiration = models.DateTimeField(
+        help_text='Date limite pour postuler'
+    )
+    active = models.BooleanField(default=True)
+    
+    class Meta:
+        ordering = ['-date_creation']
+    
+    def __str__(self):
+        return f"{self.titre} - {self.recruteur.nom_entreprise}"
+
+
+class Candidature(models.Model):
+    STATUT_CHOICES = [
+        ('en_attente', 'En Attente'),
+        ('acceptee', 'Acceptée'),
+        ('refusee', 'Refusée'),
+    ]
+    
+    candidat = models.ForeignKey(
+        Candidat,
+        on_delete=models.CASCADE,
+        related_name='candidatures'
+    )
+    job = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='candidatures'
+    )
+    cv = models.FileField(
+        upload_to='candidatures/cv/',
+        help_text='Fichier CV (PDF)'
+    )
+    lettre_motivation = models.FileField(
+        upload_to='candidatures/lettres/',
+        help_text='Lettre de motivation (PDF)',
+        blank=True,
+        null=True
+    )
+    statut = models.CharField(
+        max_length=20,
+        choices=STATUT_CHOICES,
+        default='en_attente'
+    )
+    date_candidature = models.DateTimeField(auto_now_add=True)
+    date_modification = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-date_candidature']
+        unique_together = ['candidat', 'job']
+    
+    def __str__(self):
+        return f"{self.candidat.email} - {self.job.titre} - {self.get_statut_display()}"

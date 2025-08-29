@@ -10,4 +10,4 @@ __pycache__/
 *.pyzwzw
 venv/
 .DS_Store
-settings.json
+db.sqlite3
