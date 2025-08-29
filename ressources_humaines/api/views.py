@@ -218,37 +218,24 @@ class RecruteurRegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
 
     def create(self, request, *args, **kwargs):
-        logger.info(f"🚀 [RecruteurRegisterView] Tentative d'inscription recruteur")
-        logger.debug(f"📋 [RecruteurRegisterView] Données reçues: {list(request.data.keys())}")
-        logger.debug(f"📋 [RecruteurRegisterView] Content-Type: {request.content_type}")
-        
+
         try:
             # Log des données reçues (sans les informations sensibles)
             safe_data = {k: v for k, v in request.data.items() if k not in ['password']}
-            logger.debug(f"📊 [RecruteurRegisterView] Données (sans mot de passe): {safe_data}")
             
             ser = self.get_serializer(data=request.data)
-            logger.debug(f"🔍 [RecruteurRegisterView] Sérialiseur créé")
             
             if not ser.is_valid():
-                logger.error(f"❌ [RecruteurRegisterView] Erreurs de validation: {ser.errors}")
                 return Response({
                     'detail': 'Données de formulaire invalides',
                     'errors': ser.errors
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            logger.info(f"✅ [RecruteurRegisterView] Validation réussie")
             
             user = ser.save()
-            logger.info(f"💾 [RecruteurRegisterView] Utilisateur créé avec ID: {user.id}")
             
             token, created = Token.objects.get_or_create(user=user)
-            if created:
-                logger.info(f"🔑 [RecruteurRegisterView] Nouveau token créé")
-            else:
-                logger.info(f"🔑 [RecruteurRegisterView] Token existant réutilisé")
-            
-            logger.info(f"🎉 [RecruteurRegisterView] Inscription réussie pour: {user.email}")
+           
             
             return Response({
                 'token': token.key, 
@@ -257,20 +244,18 @@ class RecruteurRegisterView(generics.CreateAPIView):
             }, status=status.HTTP_201_CREATED)
             
         except IntegrityError as e:
-            logger.error(f"🚫 [RecruteurRegisterView] Erreur d'intégrité: {str(e)}")
             return Response({
                 'detail': 'Un utilisateur avec cet email ou SIRET existe déjà.'
             }, status=status.HTTP_400_BAD_REQUEST)
             
         except ValidationError as e:
-            logger.error(f"🚫 [RecruteurRegisterView] Erreur de validation Django: {str(e)}")
+           
             return Response({
                 'detail': f'Erreur de validation: {str(e)}'
             }, status=status.HTTP_400_BAD_REQUEST)
             
         except Exception as e:
-            logger.error(f"💥 [RecruteurRegisterView] Erreur inattendue: {type(e).__name__}: {str(e)}")
-            logger.error(f"📍 [RecruteurRegisterView] Traceback:", exc_info=True)
+           
             return Response({
                 'detail': f'Erreur lors de la création du compte: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -281,30 +266,21 @@ class LoginView(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        logger.info(f"🔐 [LoginView] Tentative de connexion reçue")
-        logger.debug(f"📋 [LoginView] Données reçues: {request.data}")
-        
+       
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
         
-        logger.info(f"🔍 [LoginView] Authentification pour: {email}")
-
         user = authenticate(request, username=email, password=password)
         if not user:
-            logger.warning(f"❌ [LoginView] Échec d'authentification pour: {email}")
+           
             return Response({'detail': 'Identifiants invalides.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        logger.info(f"✅ [LoginView] Authentification réussie pour: {email} (rôle: {user.role})")
         token, created = Token.objects.get_or_create(user=user)
-        if created:
-            logger.info(f"🔑 [LoginView] Nouveau token créé pour: {email}")
-        else:
-            logger.info(f"🔑 [LoginView] Token existant utilisé pour: {email}")
-            
+       
         data = {'token': token.key, 'role': user.role, 'id': user.id}
-        logger.info(f"📤 [LoginView] Réponse envoyée: {{'token': '***', 'role': '{user.role}', 'id': {user.id}}}")
+       
         return Response(data, status=status.HTTP_200_OK)
 
 
