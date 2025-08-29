@@ -1,0 +1,119 @@
+import type { Job } from '@/types/job'
+
+/**
+ * Données de test pour les offres d'emploi
+ */
+export const mockJobs: Job[] = [
+  {
+    id: 1,
+    title: "Développeur Frontend React",
+    description: "Nous recherchons un développeur Frontend passionné pour rejoindre notre équipe dynamique. Vous travaillerez sur des projets innovants utilisant les dernières technologies React, TypeScript et Next.js. L'expérience en design system et en accessibilité web sera un plus. Vous collaborerez étroitement avec les équipes UX/UI et backend pour créer des interfaces utilisateur exceptionnelles.",
+    image: "https://placehold.co/400",
+    company: "TechCorp",
+    salary: "45000€ - 65000€",
+    contract: "CDI",
+    location: "Paris, France",
+    work: "Hybride",
+    experience: "3-5 ans",
+    keywords: ["React", "TypeScript", "Next.js", "Tailwind CSS", "Git"],
+    createdAt: new Date('2024-01-15')
+  },
+  {
+    id: 2,
+    title: "Développeur Full Stack",
+    description: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quos. Nous cherchons un développeur polyvalent capable de travailler sur toute la stack technique. Vous maîtrisez React côté frontend et Node.js côté backend, avec une bonne connaissance des bases de données relationnelles et NoSQL.",
+    image: "https://placehold.co/400",
+    company: "StartupXYZ",
+    salary: "40000€ - 55000€",
+    contract: "CDI",
+    location: "Lyon, France",
+    work: "Remote",
+    experience: "1-3 ans",
+    keywords: ["React", "Node.js", "TypeScript", "MongoDB", "PostgreSQL"],
+    createdAt: new Date('2024-01-12')
+  },
+  {
+    id: 3,
+    title: "Stage Développeur Web",
+    description: "Opportunité de stage de 6 mois au sein d'une équipe de développement agile. Vous participerez au développement d'applications web modernes et apprendrez les meilleures pratiques du développement logiciel. Formation assurée sur React, Node.js et les outils DevOps.",
+    image: "https://placehold.co/400",
+    company: "WebAgency Pro",
+    salary: "800€ - 1200€",
+    contract: "Stage",
+    location: "Marseille, France",
+    work: "Présentiel",
+    experience: "Débutant",
+    keywords: ["HTML", "CSS", "JavaScript", "React", "Formation"],
+    createdAt: new Date('2024-01-10')
+  },
+  {
+    id: 4,
+    title: "Développeur Backend Node.js",
+    description: "Rejoignez notre équipe backend pour développer des API robustes et scalables. Vous travaillerez avec Node.js, Express, et diverses bases de données. Une expérience avec les architectures microservices et Docker serait appréciée.",
+    image: "https://placehold.co/400",
+    company: "DataFlow Solutions",
+    salary: "50000€ - 70000€",
+    contract: "CDI",
+    location: "Toulouse, France",
+    work: "Hybride",
+    experience: "2-4 ans",
+    keywords: ["Node.js", "Express", "MongoDB", "Docker", "AWS"],
+    createdAt: new Date('2024-01-08')
+  },
+  {
+    id: 5,
+    title: "Consultant Freelance React",
+    description: "Mission freelance de 6 mois pour développer une application e-commerce complexe. Vous travaillerez en autonomie avec des points réguliers avec le client. Maîtrise obligatoire de React, Redux et des tests unitaires.",
+    image: "https://placehold.co/400",
+    company: "E-Commerce Plus",
+    salary: "500€ - 700€ /jour",
+    contract: "Freelance",
+    location: "Bordeaux, France",
+    work: "Remote",
+    experience: "5+ ans",
+    keywords: ["React", "Redux", "Jest", "E-commerce", "Stripe"],
+    createdAt: new Date('2024-01-05')
+  },
+  {
+    id: 6,
+    title: "Alternant Développeur Web",
+    description: "Contrat d'alternance de 12 mois pour apprendre le métier de développeur web. Formation en entreprise avec un tuteur expérimenté. Vous découvrirez React, Node.js et les méthodes agiles tout en suivant votre formation académique.",
+    image: "https://placehold.co/400",
+    company: "FormaDev",
+    salary: "1200€ - 1500€",
+    contract: "Alternance",
+    location: "Nantes, France",
+    work: "Hybride",
+    experience: "Débutant",
+    keywords: ["Formation", "React", "Node.js", "Agile", "Mentoring"],
+    createdAt: new Date('2024-01-03')
+  },
+  {
+    id: 7,
+    title: "Lead Developer React",
+    description: "Poste de leadership technique pour encadrer une équipe de 5 développeurs. Vous définirez l'architecture frontend, les bonnes pratiques et accompagnerez l'équipe dans sa montée en compétences. Expérience managériale requise.",
+    image: "https://placehold.co/400",
+    company: "BigTech Corp",
+    salary: "70000€ - 90000€",
+    contract: "CDI",
+    location: "Paris, France",
+    work: "Hybride",
+    experience: "7+ ans",
+    keywords: ["Leadership", "React", "Architecture", "Management", "Mentoring"],
+    createdAt: new Date('2024-01-02')
+  },
+  {
+    id: 8,
+    title: "Développeur Mobile React Native",
+    description: "Développement d'applications mobiles cross-platform avec React Native. Vous travaillerez sur des apps à fort trafic avec des contraintes de performance importantes. Connaissance d'iOS/Android native appréciée.",
+    image: "https://placehold.co/400",
+    company: "MobileFirst",
+    salary: "42000€ - 58000€",
+    contract: "CDD",
+    location: "Nice, France",
+    work: "Présentiel",
+    experience: "2-4 ans",
+    keywords: ["React Native", "Mobile", "iOS", "Android", "Performance"],
+    createdAt: new Date('2023-12-28')
+  }
+]
