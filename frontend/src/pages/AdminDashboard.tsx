@@ -57,7 +57,7 @@ export default function AdminDashboard(): JSX.Element {
         }
 
         // Vérifier si l'utilisateur est administrateur
-        if (!user?.email || !adminService.checkAdminAccess(user.email)) {
+        if (user?.role !== "admin") {
             navigate("/");
             return;
         }
@@ -102,7 +102,7 @@ export default function AdminDashboard(): JSX.Element {
         return Math.round(((current - previous) / previous) * 100);
     };
 
-    if (!isAuthenticated || !user || !adminService.checkAdminAccess(user.email)) {
+    if (!isAuthenticated || user?.role !== "admin") {
         return <div>Accès refusé</div>;
     }
 

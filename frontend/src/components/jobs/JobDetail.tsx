@@ -1,4 +1,4 @@
-import { useState, type JSX } from "react";
+import { useState, useEffect, type JSX } from "react";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,9 +14,11 @@ import {
     Bookmark,
     Share2,
     ExternalLink,
+    CheckCircle,
 } from "lucide-react";
 import type { Job } from "@/types/job";
 import { useAuthStore } from "@/store/auth";
+import { candidatureService } from "@/services/candidatureService";
 import ApplicationModal from "./ApplicationModal";
 
 interface JobDetailProps {
@@ -32,6 +34,8 @@ export default function JobDetail({ job }: JobDetailProps): JSX.Element {
     const navigate = useNavigate();
     const { isAuthenticated, user } = useAuthStore();
     const [isApplicationModalOpen, setIsApplicationModalOpen] = useState<boolean>(false);
+    const [hasApplied, setHasApplied] = useState<boolean>(false);
+    const [isCheckingApplication, setIsCheckingApplication] = useState<boolean>(false);
 
     /**
      * Gère le clic sur le bouton "Postuler"
@@ -45,7 +49,7 @@ export default function JobDetail({ job }: JobDetailProps): JSX.Element {
         }
 
         // Vérifier que l'utilisateur est bien un candidat
-        if (user?.userType !== "candidat") {
+        if (user?.role !== "candidat") {
             // Optionnel : afficher un message d'erreur ou rediriger
             console.warn("Seuls les candidats peuvent postuler aux offres");
             return;
@@ -61,6 +65,45 @@ export default function JobDetail({ job }: JobDetailProps): JSX.Element {
     const handleCloseApplicationModal = (): void => {
         setIsApplicationModalOpen(false);
     };
+
+    /**
+     * Gère la soumission réussie d'une candidature
+     */
+    const handleApplicationSubmitted = (): void => {
+        setHasApplied(true);
+        // Optionnel: afficher une notification de succès
+    };
+
+    /**
+     * Vérifie si l'utilisateur a déjà postulé pour cette offre
+     */
+    const checkApplicationStatus = async (jobId: number): Promise<void> => {
+        if (!isAuthenticated || user?.role !== 'candidat') {
+            return;
+        }
+
+        setIsCheckingApplication(true);
+        try {
+            const hasAlreadyApplied = await candidatureService.hasAppliedToJob(jobId);
+            setHasApplied(hasAlreadyApplied);
+        } catch (error) {
+            console.error('Erreur lors de la vérification de candidature:', error);
+            setHasApplied(false);
+        } finally {
+            setIsCheckingApplication(false);
+        }
+    };
+
+    /**
+     * Effet pour vérifier le statut de candidature quand l'offre change
+     */
+    useEffect(() => {
+        if (job && isAuthenticated && user?.role === 'candidat') {
+            checkApplicationStatus(job.id);
+        } else {
+            setHasApplied(false);
+        }
+    }, [job?.id, isAuthenticated, user?.role]);
 
     if (!job) {
         return (
@@ -115,9 +158,29 @@ export default function JobDetail({ job }: JobDetailProps): JSX.Element {
 
                 {/* Boutons d'action */}
                 <div className="flex gap-3">
-                    <Button size="lg" className="flex-1" onClick={handleApplyClick}>
-                        <Send className="h-4 w-4 mr-2" />
-                        {!isAuthenticated ? "Se connecter pour postuler" : "Postuler"}
+                    <Button 
+                        size="lg" 
+                        className="flex-1" 
+                        onClick={handleApplyClick}
+                        disabled={isCheckingApplication || (isAuthenticated && user?.role === 'candidat' && hasApplied)}
+                        variant={hasApplied ? "secondary" : "default"}
+                    >
+                        {hasApplied ? (
+                            <>
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Candidature envoyée
+                            </>
+                        ) : (
+                            <>
+                                <Send className="h-4 w-4 mr-2" />
+                                {!isAuthenticated 
+                                    ? "Se connecter pour postuler" 
+                                    : user?.role !== 'candidat'
+                                    ? "Seuls les candidats peuvent postuler"
+                                    : "Postuler"
+                                }
+                            </>
+                        )}
                     </Button>
                     <Button variant="outline" size="lg">
                         <Bookmark className="h-4 w-4" />
@@ -216,9 +279,29 @@ export default function JobDetail({ job }: JobDetailProps): JSX.Element {
 
                 {/* Bouton de candidature en bas */}
                 <div className="pt-4">
-                    <Button size="lg" className="w-full" onClick={handleApplyClick}>
-                        <Send className="h-4 w-4 mr-2" />
-                        {!isAuthenticated ? "Se connecter pour postuler" : "Postuler à cette offre"}
+                    <Button 
+                        size="lg" 
+                        className="w-full" 
+                        onClick={handleApplyClick}
+                        disabled={isCheckingApplication || (isAuthenticated && user?.role === 'candidat' && hasApplied)}
+                        variant={hasApplied ? "secondary" : "default"}
+                    >
+                        {hasApplied ? (
+                            <>
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Candidature envoyée
+                            </>
+                        ) : (
+                            <>
+                                <Send className="h-4 w-4 mr-2" />
+                                {!isAuthenticated 
+                                    ? "Se connecter pour postuler" 
+                                    : user?.role !== 'candidat'
+                                    ? "Seuls les candidats peuvent postuler"
+                                    : "Postuler à cette offre"
+                                }
+                            </>
+                        )}
                     </Button>
                 </div>
             </div>
@@ -228,6 +311,7 @@ export default function JobDetail({ job }: JobDetailProps): JSX.Element {
                 job={job}
                 isOpen={isApplicationModalOpen}
                 onClose={handleCloseApplicationModal}
+                onApplicationSubmitted={handleApplicationSubmitted}
             />
         </div>
     );

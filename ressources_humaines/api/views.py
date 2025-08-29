@@ -496,6 +496,17 @@ class JobViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def publiques(self, request):
-        jobs = Job.objects.filter(active=True)
-        serializer = self.get_serializer(jobs, many=True)
+        """
+        Récupère toutes les offres d'emploi publiques (actives) avec pagination
+        """
+        queryset = Job.objects.filter(active=True).order_by('-date_creation')
+        
+        # Appliquer la pagination DRF
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        # Fallback si pas de pagination configurée
+        serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)

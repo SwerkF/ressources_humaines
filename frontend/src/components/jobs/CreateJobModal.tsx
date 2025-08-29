@@ -20,15 +20,28 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, X, Briefcase, MapPin, Euro, Clock, Users, Save, Loader2 } from "lucide-react";
+import { Plus, X, Briefcase, MapPin, Euro, Clock, Users, Save, Loader2, AlertCircle } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
-import type { JobCreationData } from "@/types/company";
+import { companyService, type CreateJobData } from "@/services/companyService";
 import type { ContractType, WorkType } from "@/types/job";
+
+interface JobCreationFormData {
+    title: string;
+    description: string;
+    exigences: string;
+    salaryMin: number | undefined;
+    salaryMax: number | undefined;
+    contract: ContractType;
+    location: string;
+    work: WorkType;
+    experience: string;
+    keywords: string[];
+}
 
 interface CreateJobModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onJobCreated?: (job: JobCreationData) => void;
+    onJobCreated?: () => void;
 }
 
 /**
@@ -48,11 +61,12 @@ export default function CreateJobModal({
     const [error, setError] = useState<string>("");
     const [newKeyword, setNewKeyword] = useState<string>("");
 
-    const [formData, setFormData] = useState<JobCreationData>({
+    const [formData, setFormData] = useState<JobCreationFormData>({
         title: "",
         description: "",
         exigences: "",
-        salary: "",
+        salaryMin: undefined,
+        salaryMax: undefined,
         contract: "CDI",
         location: "",
         work: "Hybride",
@@ -65,7 +79,7 @@ export default function CreateJobModal({
      * @param field - Champ à mettre à jour
      * @param value - Nouvelle valeur
      */
-    const updateFormData = (field: keyof JobCreationData, value: string | string[]): void => {
+    const updateFormData = (field: keyof JobCreationFormData, value: string | string[] | number | undefined): void => {
         setFormData((prev) => ({ ...prev, [field]: value }));
         if (error) setError("");
     };
@@ -121,8 +135,13 @@ export default function CreateJobModal({
             return false;
         }
 
-        if (!formData.salary.trim()) {
-            setError("Le salaire est obligatoire");
+        if (!formData.salaryMin && !formData.salaryMax) {
+            setError("Veuillez spécifier au moins un salaire minimum ou maximum");
+            return false;
+        }
+
+        if (formData.salaryMin && formData.salaryMax && formData.salaryMin > formData.salaryMax) {
+            setError("Le salaire minimum ne peut pas être supérieur au salaire maximum");
             return false;
         }
 
@@ -154,18 +173,31 @@ export default function CreateJobModal({
         setError("");
 
         try {
-            // Simulation d'un appel API
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            // Préparer les données pour l'API Django
+            const createJobData: CreateJobData = {
+                titre: formData.title,
+                description: formData.description,
+                exigences: formData.exigences,
+                type_contrat: formData.contract,
+                salaire_min: formData.salaryMin,
+                salaire_max: formData.salaryMax,
+                localisation: formData.location,
+                date_expiration: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 jours par défaut
+            };
+
+            // Créer l'offre via l'API
+            await companyService.createJob(createJobData);
 
             // Appeler la fonction de callback si fournie
             if (onJobCreated) {
-                onJobCreated(formData);
+                onJobCreated();
             }
 
             // Fermer la modal et réinitialiser
             handleClose();
-        } catch (err) {
-            setError("Une erreur est survenue lors de la création de l'offre");
+        } catch (err: any) {
+            console.error("Erreur création offre:", err);
+            setError(err.message || "Une erreur est survenue lors de la création de l'offre");
         } finally {
             setIsSubmitting(false);
         }
@@ -179,7 +211,8 @@ export default function CreateJobModal({
             title: "",
             description: "",
             exigences: "",
-            salary: "",
+            salaryMin: undefined,
+            salaryMax: undefined,
             contract: "CDI",
             location: "",
             work: "Hybride",
@@ -188,6 +221,7 @@ export default function CreateJobModal({
         });
         setNewKeyword("");
         setError("");
+        setIsSubmitting(false);
         onClose();
     };
 
@@ -201,7 +235,7 @@ export default function CreateJobModal({
                     </DialogTitle>
                     <DialogDescription>
                         Publiez une nouvelle offre d'emploi pour{" "}
-                        {user?.userType === "entreprise" ? user.nomEntreprise : "votre entreprise"}
+                        {user?.role === "recruteur" ? user.nom_entreprise || "votre entreprise" : "votre entreprise"}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -256,28 +290,30 @@ export default function CreateJobModal({
                     {/* Détails du poste */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="salary">Salaire *</Label>
+                            <Label htmlFor="salaryMin">Salaire minimum (€)</Label>
                             <div className="relative">
                                 <Euro className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    id="salary"
-                                    value={formData.salary}
-                                    onChange={(e) => updateFormData("salary", e.target.value)}
-                                    placeholder="Ex: 45000€ - 65000€"
+                                    id="salaryMin"
+                                    type="number"
+                                    value={formData.salaryMin || ""}
+                                    onChange={(e) => updateFormData("salaryMin", e.target.value ? parseInt(e.target.value) : undefined)}
+                                    placeholder="Ex: 45000"
                                     className="pl-10"
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="location">Localisation *</Label>
+                            <Label htmlFor="salaryMax">Salaire maximum (€)</Label>
                             <div className="relative">
-                                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Euro className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    id="location"
-                                    value={formData.location}
-                                    onChange={(e) => updateFormData("location", e.target.value)}
-                                    placeholder="Ex: Paris, France"
+                                    id="salaryMax"
+                                    type="number"
+                                    value={formData.salaryMax || ""}
+                                    onChange={(e) => updateFormData("salaryMax", e.target.value ? parseInt(e.target.value) : undefined)}
+                                    placeholder="Ex: 65000"
                                     className="pl-10"
                                 />
                             </div>
@@ -319,6 +355,20 @@ export default function CreateJobModal({
                                     <SelectItem value="Présentiel">Présentiel</SelectItem>
                                 </SelectContent>
                             </Select>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="location">Localisation *</Label>
+                        <div className="relative">
+                            <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                id="location"
+                                value={formData.location}
+                                onChange={(e) => updateFormData("location", e.target.value)}
+                                placeholder="Ex: Paris, France"
+                                className="pl-10"
+                            />
                         </div>
                     </div>
 
@@ -402,16 +452,22 @@ export default function CreateJobModal({
                             </div>
                             <div>
                                 <strong>Entreprise :</strong>{" "}
-                                {user?.userType === "entreprise"
-                                    ? user.nomEntreprise
-                                    : "Votre entreprise"}
+                                {user?.role === "recruteur" ? user.nom_entreprise || "Votre entreprise" : "Votre entreprise"}
                             </div>
                             <div>
                                 <strong>Localisation :</strong>{" "}
                                 {formData.location || "Non spécifiée"}
                             </div>
                             <div>
-                                <strong>Salaire :</strong> {formData.salary || "Non spécifié"}
+                                <strong>Salaire :</strong>{" "}
+                                {formData.salaryMin || formData.salaryMax 
+                                    ? `${formData.salaryMin ? formData.salaryMin.toLocaleString('fr-FR') + '€' : ''}${formData.salaryMin && formData.salaryMax ? ' - ' : ''}${formData.salaryMax ? formData.salaryMax.toLocaleString('fr-FR') + '€' : ''}`
+                                    : "Non spécifié"
+                                }
+                            </div>
+                            <div>
+                                <strong>Compétences :</strong>{" "}
+                                {formData.keywords.length > 0 ? formData.keywords.join(", ") : "Aucune compétence ajoutée"}
                             </div>
                             <div className="flex gap-2 mt-2">
                                 <Badge variant="secondary">{formData.contract}</Badge>

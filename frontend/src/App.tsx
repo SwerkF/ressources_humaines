@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Navbar from "./components/navbar/navbar";
 import { SmoothCursor } from "./components/ui/smooth-cursor";
+import { PublicRoute, GuestRoute, PrivateRoute, ProtectedRoute } from "./routes";
 
 import { type JSX } from "react";
 import Home from "./pages/home";
@@ -23,13 +24,62 @@ function App(): JSX.Element {
                 <Navbar />
                 <div className="flex-1">
                     <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/register" element={<AuthPage />} />
-                        <Route path="/login" element={<AuthPage />} />
-                        <Route path="/jobs" element={<JobsPage />} />
-                        <Route path="/profile" element={<ProfilePage />} />
-                        <Route path="/dashboard" element={<CompanyDashboard />} />
-                        <Route path="/admin" element={<AdminDashboard />} />
+                        <Route
+                            path="/"
+                            element={
+                                <PublicRoute>
+                                    <Home />
+                                </PublicRoute>
+                            }
+                        />
+                        <Route
+                            path="/register"
+                            element={
+                                <GuestRoute>
+                                    <AuthPage />
+                                </GuestRoute>
+                            }
+                        />
+                        <Route
+                            path="/login"
+                            element={
+                                <GuestRoute>
+                                    <AuthPage />
+                                </GuestRoute>
+                            }
+                        />
+                        <Route
+                            path="/jobs"
+                            element={
+                                <PublicRoute>
+                                    <JobsPage />
+                                </PublicRoute>
+                            }
+                        />
+                        <Route
+                            path="/profile"
+                            element={
+                                <PrivateRoute>
+                                    <ProfilePage />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/dashboard"
+                            element={
+                                <ProtectedRoute allowedRoles={["recruteur"]}>
+                                    <CompanyDashboard />
+                                </ProtectedRoute>
+                            }
+                        />
+                        <Route
+                            path="/admin"
+                            element={
+                                <ProtectedRoute allowedRoles={["admin"]}>
+                                    <AdminDashboard />
+                                </ProtectedRoute>
+                            }
+                        />
                     </Routes>
                 </div>
             </div>

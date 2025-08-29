@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import authService from "@/services/api/authService";
 import type { User, LoginData, RegisterCandidatData, RegisterEntrepriseData } from "@/types/auth";
 
 interface AuthState {
@@ -7,10 +8,12 @@ interface AuthState {
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (data: LoginData) => Promise<void>;
-    logout: () => void;
+    logout: () => Promise<void>;
     registerCandidat: (data: RegisterCandidatData) => Promise<void>;
     registerEntreprise: (data: RegisterEntrepriseData) => Promise<void>;
+    updateProfile: (data: Partial<User>) => Promise<void>;
     setUser: (user: User) => void;
+    initAuth: () => Promise<void>;
 }
 
 /**
@@ -31,42 +34,43 @@ export const useAuthStore = create<AuthState>()(
             login: async (data: LoginData) => {
                 set({ isLoading: true });
                 try {
-                    // Simulation d'un appel API
-                    await new Promise((resolve) => setTimeout(resolve, 1000));
+                    await authService.login(data.email, data.password);
 
-                    // Pour la démo, on crée un utilisateur fictif
-                    const user: User = {
-                        id: "1",
-                        userType: "candidat",
-                        prenom: "John",
-                        nom: "Doe",
-                        email: data.email,
-                        dateNaissance: "1990-01-01",
-                        posteActuel: "Développeur",
-                        entrepriseActuelle: "TechCorp",
-                        createdAt: new Date(),
-                    };
+                    // Récupérer les données complètes du profil
+                    const userData = await authService.getMe();
 
                     set({
-                        user,
+                        user: userData,
                         isAuthenticated: true,
                         isLoading: false,
                     });
                 } catch (error) {
                     set({ isLoading: false });
-                    throw new Error("Échec de la connexion");
+                    throw error;
                 }
             },
 
             /**
              * Déconnexion de l'utilisateur
              */
-            logout: () => {
-                set({
-                    user: null,
-                    isAuthenticated: false,
-                    isLoading: false,
-                });
+            logout: async () => {
+                set({ isLoading: true });
+                try {
+                    await authService.logout();
+
+                    set({
+                        user: null,
+                        isAuthenticated: false,
+                        isLoading: false,
+                    });
+                } catch (error) {
+                    // Même en cas d'erreur, on déconnecte localement
+                    set({
+                        user: null,
+                        isAuthenticated: false,
+                        isLoading: false,
+                    });
+                }
             },
 
             /**
@@ -76,30 +80,16 @@ export const useAuthStore = create<AuthState>()(
             registerCandidat: async (data: RegisterCandidatData) => {
                 set({ isLoading: true });
                 try {
-                    // Simulation d'un appel API
-                    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-                    const user: User = {
-                        id: Date.now().toString(),
-                        userType: "candidat",
-                        prenom: data.prenom,
-                        nom: data.nom,
-                        email: data.email,
-                        dateNaissance: data.dateNaissance,
-                        posteActuel: data.posteActuel,
-                        entrepriseActuelle: data.entrepriseActuelle,
-                        linkedin: data.linkedin,
-                        createdAt: new Date(),
-                    };
+                    const registerResponse = await authService.registerCandidat(data);
 
                     set({
-                        user,
+                        user: registerResponse.user,
                         isAuthenticated: true,
                         isLoading: false,
                     });
                 } catch (error) {
                     set({ isLoading: false });
-                    throw new Error("Échec de l'inscription du candidat");
+                    throw error;
                 }
             },
 
@@ -110,31 +100,36 @@ export const useAuthStore = create<AuthState>()(
             registerEntreprise: async (data: RegisterEntrepriseData) => {
                 set({ isLoading: true });
                 try {
-                    // Simulation d'un appel API
-                    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-                    const user: User = {
-                        id: Date.now().toString(),
-                        userType: "entreprise",
-                        nomEntreprise: data.nomEntreprise,
-                        siret: data.siret,
-                        nomGerant: data.nomGerant,
-                        email: data.email,
-                        localisation: data.localisation,
-                        image: data.image,
-                        linkedin: data.linkedin,
-                        siteWeb: data.siteWeb,
-                        createdAt: new Date(),
-                    };
+                    const registerResponse = await authService.registerRecruteur(data);
 
                     set({
-                        user,
+                        user: registerResponse.user,
                         isAuthenticated: true,
                         isLoading: false,
                     });
                 } catch (error) {
                     set({ isLoading: false });
-                    throw new Error("Échec de l'inscription de l'entreprise");
+                    throw error;
+                }
+            },
+
+            /**
+             * Met à jour le profil de l'utilisateur connecté
+             * @param data - Données partielles à mettre à jour
+             */
+            updateProfile: async (data: Partial<User>) => {
+                set({ isLoading: true });
+                try {
+                    const updatedUser = await authService.updateProfile(data);
+
+                    set({
+                        user: updatedUser,
+                        isAuthenticated: true,
+                        isLoading: false,
+                    });
+                } catch (error) {
+                    set({ isLoading: false });
+                    throw error;
                 }
             },
 
@@ -147,6 +142,29 @@ export const useAuthStore = create<AuthState>()(
                     user,
                     isAuthenticated: true,
                 });
+            },
+
+            /**
+             * Initialise l'authentification au démarrage de l'application
+             */
+            initAuth: async () => {
+                set({ isLoading: true });
+                try {
+                    if (authService.isAuthenticated()) {
+                        const userData = await authService.getMe();
+
+                        set({
+                            user: userData,
+                            isAuthenticated: true,
+                            isLoading: false,
+                        });
+                    } else {
+                        set({ isLoading: false });
+                    }
+                } catch (error) {
+                    // En cas d'erreur, nettoyer l'état
+                    await get().logout();
+                }
             },
         }),
         {

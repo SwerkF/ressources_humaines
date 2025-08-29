@@ -10,6 +10,37 @@ export default function Navbar() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { user, isAuthenticated, logout } = useAuthStore();
 
+    /**
+     * Récupère le logo de l'utilisateur connecté ou génère un fallback
+     */
+    const getUserLogo = () => {
+        if (!user) return null;
+        
+        // Pour les recruteurs, utiliser leur logo d'entreprise
+        if (user.role === 'recruteur' && user.logo) {
+            // Si c'est un chemin relatif, construire l'URL complète
+            if (user.logo.startsWith('/')) {
+                return `http://localhost:8000${user.logo}`;
+            }
+            if (user.logo.startsWith('http')) {
+                return user.logo;
+            }
+            if (user.logo.includes('media/')) {
+                return `http://localhost:8000/${user.logo}`;
+            }
+            return `http://localhost:8000/media/${user.logo}`;
+        }
+        
+        // Fallback: génerer un avatar basé sur le nom
+        const displayName = user.role === 'candidat' 
+            ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+            : user.role === 'recruteur'
+            ? user.nom_entreprise || 'Entreprise'
+            : user.email || 'Utilisateur';
+            
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&size=128&background=random`;
+    };
+
     const navItems = [
         { name: "Accueil", icon: Home, href: "/" },
         { name: "Offres d'emploi", icon: Briefcase, href: "/jobs" },
@@ -18,43 +49,6 @@ export default function Navbar() {
     const handleLogout = () => {
         logout();
         setIsMobileMenuOpen(false);
-    };
-
-    const handleDemoLogin = async () => {
-        const { login } = useAuthStore.getState();
-        try {
-            await login({ email: "demo@traverselarue.fr", password: "password" });
-        } catch (error) {
-            console.error("Erreur de connexion:", error);
-        }
-    };
-
-    const handleDemoCompanyLogin = async () => {
-        const { registerEntreprise } = useAuthStore.getState();
-        try {
-            await registerEntreprise({
-                nomEntreprise: "TechCorp",
-                siret: "12345678900001",
-                nomGerant: "Jean Dupont",
-                email: "contact@techcorp.fr",
-                password: "password",
-                localisation: "Paris, France",
-                image: "https://placehold.co/400",
-                linkedin: "https://linkedin.com/company/techcorp",
-                siteWeb: "https://techcorp.fr",
-            });
-        } catch (error) {
-            console.error("Erreur de connexion entreprise:", error);
-        }
-    };
-
-    const handleDemoAdminLogin = async () => {
-        const { login } = useAuthStore.getState();
-        try {
-            await login({ email: "demo@traverselarue.fr", password: "password" });
-        } catch (error) {
-            console.error("Erreur de connexion admin:", error);
-        }
     };
 
     return (
@@ -99,16 +93,19 @@ export default function Navbar() {
                                 <>
                                     <div className="flex items-center space-x-3">
                                         {/* Liens spécifiques selon le type d'utilisateur */}
-                                        {user?.userType === "candidat" && (
+                                        {user?.role === "candidat" && (
                                             <Button variant="ghost" size="sm" asChild>
-                                                <Link to="/profile">
+                                                <Link
+                                                    to="/profile"
+                                                    className="flex items-center space-x-1"
+                                                >
                                                     <User className="h-4 w-4 mr-2" />
                                                     Mon Profil
                                                 </Link>
                                             </Button>
                                         )}
 
-                                        {user?.userType === "entreprise" && (
+                                        {user?.role === "admin" && (
                                             <Button variant="ghost" size="sm" asChild>
                                                 <Link to="/dashboard">
                                                     <Briefcase className="h-4 w-4 mr-2" />
@@ -119,9 +116,7 @@ export default function Navbar() {
 
                                         {/* Bouton Admin pour les utilisateurs autorisés */}
                                         {user?.email &&
-                                            (user.email === "demo@traverselarue.fr" ||
-                                                user.email === "admin@traverselarue.fr" ||
-                                                user.email === "superadmin@traverselarue.fr") && (
+                                             (user?.role === "admin" &&
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
@@ -136,14 +131,28 @@ export default function Navbar() {
                                             )}
 
                                         <div className="flex items-center space-x-2">
-                                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                                <User className="h-4 w-4 text-primary" />
+                                            <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-200 dark:border-zinc-700">
+                                                <img
+                                                    src={getUserLogo() || `https://ui-avatars.com/api/?name=User&size=128&background=random`}
+                                                    alt="Avatar utilisateur"
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        // Fallback en cas d'erreur de chargement d'image
+                                                        const target = e.target as HTMLImageElement;
+                                                        const displayName = user?.role === 'candidat' 
+                                                            ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                                                            : user?.role === 'recruteur'
+                                                            ? user.nom_entreprise || 'Entreprise'
+                                                            : 'User';
+                                                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&size=128&background=random`;
+                                                    }}
+                                                />
                                             </div>
                                             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                                                {user?.userType === "candidat"
-                                                    ? `${user.prenom} ${user.nom}`
-                                                    : user?.userType === "entreprise"
-                                                      ? user.nomEntreprise
+                                                {user?.role === "candidat"
+                                                    ? `${user.first_name} ${user.last_name}`
+                                                    : user?.role === "recruteur"
+                                                      ? user.nom_entreprise
                                                       : "Utilisateur"}
                                             </span>
                                         </div>
@@ -163,11 +172,12 @@ export default function Navbar() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={handleDemoLogin}
                                         className="flex items-center space-x-1"
                                     >
-                                        <LogIn className="h-4 w-4" />
-                                        <span>Connexion</span>
+                                        <Link to="/login" className="flex items-center space-x-1">
+                                            <LogIn className="h-4 w-4" />
+                                            <span>Connexion</span>
+                                        </Link>
                                     </Button>
                                     <Button size="sm" className="flex items-center space-x-1">
                                         <Link
@@ -177,25 +187,6 @@ export default function Navbar() {
                                             <UserPlus className="h-4 w-4" />
                                             <span>Inscription</span>
                                         </Link>
-                                    </Button>
-                                    <Button variant="outline" size="sm" onClick={handleDemoLogin}>
-                                        Démo Candidat
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleDemoCompanyLogin}
-                                    >
-                                        Démo Entreprise
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleDemoAdminLogin}
-                                        className="text-primary border-primary hover:bg-primary hover:text-white"
-                                    >
-                                        <Shield className="h-4 w-4 mr-1" />
-                                        Démo Admin
                                     </Button>
                                 </>
                             )}
@@ -250,20 +241,34 @@ export default function Navbar() {
                         {isAuthenticated ? (
                             <div className="space-y-1">
                                 <div className="flex items-center px-3 py-2">
-                                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center mr-3">
-                                        <User className="h-4 w-4 text-white" />
+                                    <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-200 dark:border-zinc-700 mr-3">
+                                        <img
+                                            src={getUserLogo() || `https://ui-avatars.com/api/?name=User&size=128&background=random`}
+                                            alt="Avatar utilisateur"
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                // Fallback en cas d'erreur de chargement d'image
+                                                const target = e.target as HTMLImageElement;
+                                                const displayName = user?.role === 'candidat' 
+                                                    ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                                                    : user?.role === 'recruteur'
+                                                    ? user.nom_entreprise || 'Entreprise'
+                                                    : 'User';
+                                                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&size=128&background=random`;
+                                            }}
+                                        />
                                     </div>
                                     <span className="text-base font-medium text-zinc-700 dark:text-zinc-300">
-                                        {user?.userType === "candidat"
-                                            ? `${user.prenom} ${user.nom}`
-                                            : user?.userType === "entreprise"
-                                              ? user.nomEntreprise
+                                        {user?.role === "candidat"
+                                            ? `${user.first_name} ${user.last_name}`
+                                            : user?.role === "recruteur"
+                                              ? user.nom_entreprise
                                               : "Utilisateur"}
                                     </span>
                                 </div>
 
                                 {/* Liens spécifiques selon le type d'utilisateur - Mobile */}
-                                {user?.userType === "candidat" && (
+                                {user?.role === "candidat" && (
                                     <Link
                                         to="/profile"
                                         className="flex items-center px-3 py-2 rounded-md text-base font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors duration-200"
@@ -274,7 +279,7 @@ export default function Navbar() {
                                     </Link>
                                 )}
 
-                                {user?.userType === "entreprise" && (
+                                {user?.role === "recruteur" && (
                                     <Link
                                         to="/dashboard"
                                         className="flex items-center px-3 py-2 rounded-md text-base font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors duration-200"
@@ -286,10 +291,7 @@ export default function Navbar() {
                                 )}
 
                                 {/* Bouton Admin pour les utilisateurs autorisés - Mobile */}
-                                {user?.email &&
-                                    (user.email === "demo@traverselarue.fr" ||
-                                        user.email === "admin@traverselarue.fr" ||
-                                        user.email === "superadmin@traverselarue.fr") && (
+                                {user?.role === "admin" && (
                                         <Link
                                             to="/admin"
                                             className="flex items-center px-3 py-2 rounded-md text-base font-medium text-primary hover:text-primary/80 hover:bg-primary/10 transition-colors duration-200"
@@ -311,55 +313,18 @@ export default function Navbar() {
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                <Button
-                                    variant="outline"
-                                    className="w-full justify-start"
-                                    onClick={handleDemoLogin}
-                                >
-                                    <LogIn className="h-4 w-4 mr-2" />
-                                    Connexion
+                                <Button variant="outline" className="w-full justify-start" asChild>
+                                    <Link to="/login" className="flex items-center space-x-1">
+                                        <LogIn className="h-4 w-4 mr-2" />
+                                        Connexion
+                                    </Link>
                                 </Button>
-                                <Button className="w-full justify-start">
-                                    <UserPlus className="h-4 w-4 mr-2" />
-                                    Inscription
+                                <Button className="w-full justify-start" asChild>
+                                    <Link to="/register" className="flex items-center space-x-1">
+                                        <UserPlus className="h-4 w-4 mr-2" />
+                                        Inscription
+                                    </Link>
                                 </Button>
-
-                                {/* Boutons démo - Mobile */}
-                                <div className="border-t border-zinc-200 dark:border-zinc-700 pt-2 space-y-2">
-                                    <Button
-                                        variant="outline"
-                                        className="w-full justify-start"
-                                        onClick={() => {
-                                            handleDemoLogin();
-                                            setIsMobileMenuOpen(false);
-                                        }}
-                                    >
-                                        <User className="h-4 w-4 mr-2" />
-                                        Démo Candidat
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        className="w-full justify-start"
-                                        onClick={() => {
-                                            handleDemoCompanyLogin();
-                                            setIsMobileMenuOpen(false);
-                                        }}
-                                    >
-                                        <Briefcase className="h-4 w-4 mr-2" />
-                                        Démo Entreprise
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        className="w-full justify-start text-primary border-primary hover:bg-primary hover:text-white"
-                                        onClick={() => {
-                                            handleDemoAdminLogin();
-                                            setIsMobileMenuOpen(false);
-                                        }}
-                                    >
-                                        <Shield className="h-4 w-4 mr-2" />
-                                        Démo Admin
-                                    </Button>
-                                </div>
                             </div>
                         )}
                     </div>

@@ -11,7 +11,7 @@ class AxiosService {
     /**
      * Initialise l'instance Axios avec la configuration de base.
      */
-    constructor(baseURL: string = "/api") {
+    constructor(baseURL: string = "http://localhost:8000/api") {
         this.axiosInstance = axios.create({
             baseURL,
             headers: {
@@ -22,11 +22,13 @@ class AxiosService {
         // Intercepteur pour ajouter le token d'authentification si présent (via js-cookie)
         this.axiosInstance.interceptors.request.use(
             (config) => {
-                const token = Cookies.get("accessToken");
+                const token = Cookies.get("authToken");
                 if (token) {
                     config.headers = config.headers ?? {};
-                    config.headers["Authorization"] = `Bearer ${token}`;
+                    config.headers["Authorization"] = `Token ${token}`;
+                } else {
                 }
+
                 return config;
             },
             (error) => {
@@ -36,9 +38,35 @@ class AxiosService {
 
         // Intercepteur pour gérer les erreurs globales
         this.axiosInstance.interceptors.response.use(
-            (response) => response,
+            (response) => {
+                return response;
+            },
             (error) => {
-                // Ici, on pourrait gérer le rafraîchissement du token ou la redirection vers la page de login
+                console.error(`❌ [AxiosService] Erreur HTTP:`, {
+                    status: error.response?.status,
+                    statusText: error.response?.statusText,
+                    url: error.config?.url,
+                    method: error.config?.method,
+                    data: error.response?.data,
+                    message: error.message,
+                });
+
+                // Gestion des erreurs d'authentification
+                if (error.response?.status === 401) {
+                    // Token expiré ou invalide - supprimer les cookies d'authentification
+                    Cookies.remove("authToken");
+                    Cookies.remove("userRole");
+                    Cookies.remove("userId");
+
+                    // Rediriger vers la page de connexion si on n'y est pas déjà
+                    if (
+                        typeof window !== "undefined" &&
+                        !window.location.pathname.includes("/login")
+                    ) {
+                        window.location.href = "/login";
+                    }
+                }
+
                 return Promise.reject(error);
             },
         );
@@ -82,6 +110,14 @@ class AxiosService {
         config?: AxiosRequestConfig,
     ): Promise<AxiosResponse<T>> {
         return this.axiosInstance.put<T>(url, data, config);
+    }
+
+    public async patch<T, D = unknown>(
+        url: string,
+        data?: D,
+        config?: AxiosRequestConfig,
+    ): Promise<AxiosResponse<T>> {
+        return this.axiosInstance.patch<T>(url, data, config);
     }
 
     /**

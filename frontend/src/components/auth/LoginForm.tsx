@@ -1,123 +1,117 @@
-import { useState, type JSX } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { LogIn, Loader2 } from "lucide-react";
+import React, { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/auth";
-import type { LoginData } from "@/types/auth";
-
-interface LoginFormProps {
-    onShowRegister: () => void;
-}
+import type { AuthError } from "@/types/auth";
 
 /**
- * Formulaire de connexion
- * @param onShowRegister - Fonction appelée pour passer au mode inscription
- * @returns {JSX.Element}
+ * Composant de formulaire de connexion
  */
-export default function LoginForm({ onShowRegister }: LoginFormProps): JSX.Element {
+export const LoginForm: React.FC = () => {
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState<string | null>(null);
+
     const { login, isLoading } = useAuthStore();
-    const [formData, setFormData] = useState<LoginData>({
-        email: "",
-        password: "",
-    });
-    const [error, setError] = useState<string>("");
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // Récupérer la page de destination après connexion
+    const from = location.state?.from?.pathname || "/dashboard";
 
     /**
-     * Gère les changements dans les champs du formulaire
-     * @param field - Nom du champ
-     * @param value - Nouvelle valeur
+     * Gère la soumission du formulaire de connexion
      */
-    const handleInputChange = (field: keyof LoginData, value: string): void => {
-        setFormData((prev) => ({ ...prev, [field]: value }));
-        if (error) setError("");
-    };
-
-    /**
-     * Gère la soumission du formulaire
-     * @param e - Événement de soumission
-     */
-    const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError("");
-
-        // Validation basique
-        if (!formData.email || !formData.password) {
-            setError("Veuillez remplir tous les champs");
-            return;
-        }
+        setError(null);
 
         try {
-            await login(formData);
+            await login({ email, password });
+            navigate(from, { replace: true });
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Une erreur est survenue");
+            const authError = err as AuthError;
+            setError(authError.detail || authError.message || "Erreur lors de la connexion");
         }
     };
 
     return (
-        <div className="max-w-md mx-auto">
-            <div className="text-center space-y-6 mb-8">
-                <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                    <LogIn className="w-8 h-8 text-primary" />
-                </div>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-md w-full space-y-8">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Se connecter</h1>
-                    <p className="text-muted-foreground mt-2">
-                        Entrez vos identifiants pour vous connecter
-                    </p>
+                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                        Connexion à votre compte
+                    </h2>
                 </div>
-            </div>
-
-            <div className="bg-white dark:bg-zinc-900 rounded-lg p-6 shadow-sm border">
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     {error && (
-                        <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
                             {error}
                         </div>
                     )}
 
-                    <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                            id="email"
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => handleInputChange("email", e.target.value)}
-                            placeholder="votre.email@exemple.com"
-                            required
-                        />
+                    <div className="rounded-md shadow-sm -space-y-px">
+                        <div>
+                            <label htmlFor="email" className="sr-only">
+                                Adresse email
+                            </label>
+                            <input
+                                id="email"
+                                name="email"
+                                type="email"
+                                autoComplete="email"
+                                required
+                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                placeholder="Adresse email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="password" className="sr-only">
+                                Mot de passe
+                            </label>
+                            <input
+                                id="password"
+                                name="password"
+                                type="password"
+                                autoComplete="current-password"
+                                required
+                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                placeholder="Mot de passe"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                        </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="password">Mot de passe</Label>
-                        <Input
-                            id="password"
-                            type="password"
-                            value={formData.password}
-                            onChange={(e) => handleInputChange("password", e.target.value)}
-                            placeholder="••••••••"
-                            required
-                        />
-                    </div>
-
-                    <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Se connecter
-                    </Button>
-                </form>
-
-                <div className="mt-6 text-center">
-                    <p className="text-sm text-muted-foreground">
-                        Vous n'avez pas encore de compte ?{" "}
+                    <div>
                         <button
-                            onClick={onShowRegister}
-                            className="text-primary hover:underline font-medium"
+                            type="submit"
+                            disabled={isLoading}
+                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            S'inscrire
+                            {isLoading ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            ) : (
+                                "Se connecter"
+                            )}
                         </button>
-                    </p>
-                </div>
+                    </div>
+
+                    <div className="text-center">
+                        <p className="text-sm text-gray-600">
+                            Pas encore de compte ?{" "}
+                            <button
+                                type="button"
+                                onClick={() => navigate("/register")}
+                                className="font-medium text-blue-600 hover:text-blue-500"
+                            >
+                                S'inscrire
+                            </button>
+                        </p>
+                    </div>
+                </form>
             </div>
         </div>
     );
-}
+};

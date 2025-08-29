@@ -126,12 +126,13 @@ class LoginSerializer(serializers.Serializer):
 
 class JobSerializer(serializers.ModelSerializer):
     recruteur_nom = serializers.CharField(source='recruteur.nom_entreprise', read_only=True)
+    recruteur_logo = serializers.ImageField(source='recruteur.logo', read_only=True)
     nombre_candidatures = serializers.SerializerMethodField()
     
     class Meta:
         model = Job
         fields = [
-            'id', 'recruteur', 'recruteur_nom', 'titre', 'description', 'exigences',
+            'id', 'recruteur', 'recruteur_nom', 'recruteur_logo', 'titre', 'description', 'exigences',
             'type_contrat', 'salaire_min', 'salaire_max', 'localisation',
             'date_creation', 'date_expiration', 'active', 'nombre_candidatures'
         ]

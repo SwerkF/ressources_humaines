@@ -6,9 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-    User,
+    User as UserIcon,
     Mail,
-    Phone,
     Building2,
     Briefcase,
     MapPin,
@@ -19,7 +18,7 @@ import {
     Loader2,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
-import type { Candidat, Entreprise } from "@/types/auth";
+import type { User } from "@/types/auth";
 
 /**
  * Page de profil utilisateur pour modifier ses informations
@@ -27,14 +26,14 @@ import type { Candidat, Entreprise } from "@/types/auth";
  */
 export default function ProfilePage(): JSX.Element {
     const navigate = useNavigate();
-    const { user, isAuthenticated } = useAuthStore();
+    const { user, isAuthenticated, updateProfile } = useAuthStore();
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isSaved, setIsSaved] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
 
     // États pour les formulaires
-    const [candidatData, setCandidatData] = useState<Partial<Candidat>>({});
-    const [entrepriseData, setEntrepriseData] = useState<Partial<Entreprise>>({});
+    const [candidatData, setCandidatData] = useState<Partial<User>>({});
+    const [entrepriseData, setEntrepriseData] = useState<Partial<User>>({});
 
     // Redirection si non authentifié
     useEffect(() => {
@@ -44,26 +43,26 @@ export default function ProfilePage(): JSX.Element {
         }
 
         // Initialiser les données selon le type d'utilisateur
-        if (user?.userType === "candidat") {
+        if (user?.role === "candidat") {
             setCandidatData({
-                prenom: user.prenom,
-                nom: user.nom,
+                first_name: user.first_name,
+                last_name: user.last_name,
                 email: user.email,
-                dateNaissance: user.dateNaissance,
-                posteActuel: user.posteActuel,
-                entrepriseActuelle: user.entrepriseActuelle,
+                date_naissance: user.date_naissance,
+                poste_actuel: user.poste_actuel,
+                entreprise_actuelle: user.entreprise_actuelle,
                 linkedin: user.linkedin || "",
             });
-        } else if (user?.userType === "entreprise") {
+        } else if (user?.role === "recruteur") {
             setEntrepriseData({
-                nomEntreprise: user.nomEntreprise,
+                nom_entreprise: user.nom_entreprise,
                 siret: user.siret,
-                nomGerant: user.nomGerant,
+                nom_gerant: user.nom_gerant,
                 email: user.email,
+                email_professionnel: user.email_professionnel,
                 localisation: user.localisation,
-                image: user.image || "",
-                linkedin: user.linkedin || "",
-                siteWeb: user.siteWeb || "",
+                logo: user.logo || "",
+                site_web: user.site_web || "",
             });
         }
     }, [isAuthenticated, user, navigate]);
@@ -73,8 +72,8 @@ export default function ProfilePage(): JSX.Element {
      * @param field - Champ à mettre à jour
      * @param value - Nouvelle valeur
      */
-    const updateCandidatData = (field: keyof Candidat, value: string): void => {
-        setCandidatData((prev) => ({ ...prev, [field]: value }));
+    const updateCandidatData = (field: keyof User, value: string): void => {
+        setCandidatData((prev: Partial<User>) => ({ ...prev, [field]: value }));
     };
 
     /**
@@ -82,8 +81,8 @@ export default function ProfilePage(): JSX.Element {
      * @param field - Champ à mettre à jour
      * @param value - Nouvelle valeur
      */
-    const updateEntrepriseData = (field: keyof Entreprise, value: string): void => {
-        setEntrepriseData((prev) => ({ ...prev, [field]: value }));
+    const updateEntrepriseData = (field: keyof User, value: string): void => {
+        setEntrepriseData((prev: Partial<User>) => ({ ...prev, [field]: value }));
     };
 
     /**
@@ -94,19 +93,26 @@ export default function ProfilePage(): JSX.Element {
         setError("");
 
         try {
-            // Simulation d'un appel API
-            await new Promise((resolve) => setTimeout(resolve, 1500));
+            // Déterminer les données à envoyer selon le type d'utilisateur
+            const dataToUpdate = user?.role === "candidat" ? candidatData : entrepriseData;
 
-            // Ici on ferait l'appel API pour sauvegarder
-            console.log(
-                "Données à sauvegarder:",
-                user?.userType === "candidat" ? candidatData : entrepriseData,
+            // Filtrer les champs vides et undefined pour n'envoyer que les modifications
+            const filteredData = Object.fromEntries(
+                Object.entries(dataToUpdate).filter(([_, value]) => value !== "" && value != null),
             );
+
+            console.log("Données à sauvegarder:", filteredData);
+
+            // Appel API pour sauvegarder
+            await updateProfile(filteredData);
 
             setIsSaved(true);
             setTimeout(() => setIsSaved(false), 3000);
-        } catch (err) {
-            setError("Erreur lors de la sauvegarde des modifications");
+        } catch (err: any) {
+            console.error("Erreur lors de la sauvegarde:", err);
+            setError(
+                err?.detail || err?.message || "Erreur lors de la sauvegarde des modifications",
+            );
         } finally {
             setIsLoading(false);
         }
@@ -151,11 +157,11 @@ export default function ProfilePage(): JSX.Element {
                 )}
 
                 {/* Formulaire Candidat */}
-                {user.userType === "candidat" && (
+                {user.role === "candidat" && (
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
-                                <User className="h-5 w-5" />
+                                <UserIcon className="h-5 w-5" />
                                 Informations personnelles
                             </CardTitle>
                             <CardDescription>Modifiez vos informations de candidat</CardDescription>
@@ -166,9 +172,9 @@ export default function ProfilePage(): JSX.Element {
                                     <Label htmlFor="prenom">Prénom</Label>
                                     <Input
                                         id="prenom"
-                                        value={candidatData.prenom || ""}
+                                        value={candidatData.first_name || ""}
                                         onChange={(e) =>
-                                            updateCandidatData("prenom", e.target.value)
+                                            updateCandidatData("first_name", e.target.value)
                                         }
                                         placeholder="Votre prénom"
                                     />
@@ -177,8 +183,10 @@ export default function ProfilePage(): JSX.Element {
                                     <Label htmlFor="nom">Nom</Label>
                                     <Input
                                         id="nom"
-                                        value={candidatData.nom || ""}
-                                        onChange={(e) => updateCandidatData("nom", e.target.value)}
+                                        value={candidatData.last_name || ""}
+                                        onChange={(e) =>
+                                            updateCandidatData("last_name", e.target.value)
+                                        }
                                         placeholder="Votre nom"
                                     />
                                 </div>
@@ -206,9 +214,9 @@ export default function ProfilePage(): JSX.Element {
                                 <Input
                                     id="dateNaissance"
                                     type="date"
-                                    value={candidatData.dateNaissance || ""}
+                                    value={candidatData.date_naissance || ""}
                                     onChange={(e) =>
-                                        updateCandidatData("dateNaissance", e.target.value)
+                                        updateCandidatData("date_naissance", e.target.value)
                                     }
                                 />
                             </div>
@@ -222,9 +230,9 @@ export default function ProfilePage(): JSX.Element {
                                         <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                         <Input
                                             id="posteActuel"
-                                            value={candidatData.posteActuel || ""}
+                                            value={candidatData.poste_actuel || ""}
                                             onChange={(e) =>
-                                                updateCandidatData("posteActuel", e.target.value)
+                                                updateCandidatData("poste_actuel", e.target.value)
                                             }
                                             placeholder="Ex: Développeur Frontend"
                                             className="pl-10"
@@ -237,10 +245,10 @@ export default function ProfilePage(): JSX.Element {
                                         <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                         <Input
                                             id="entrepriseActuelle"
-                                            value={candidatData.entrepriseActuelle || ""}
+                                            value={candidatData.entreprise_actuelle || ""}
                                             onChange={(e) =>
                                                 updateCandidatData(
-                                                    "entrepriseActuelle",
+                                                    "entreprise_actuelle",
                                                     e.target.value,
                                                 )
                                             }
@@ -272,7 +280,7 @@ export default function ProfilePage(): JSX.Element {
                 )}
 
                 {/* Formulaire Entreprise */}
-                {user.userType === "entreprise" && (
+                {user.role === "recruteur" && (
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
@@ -288,9 +296,9 @@ export default function ProfilePage(): JSX.Element {
                                 <Label htmlFor="nomEntreprise">Nom de l'entreprise</Label>
                                 <Input
                                     id="nomEntreprise"
-                                    value={entrepriseData.nomEntreprise || ""}
+                                    value={entrepriseData.nom_entreprise || ""}
                                     onChange={(e) =>
-                                        updateEntrepriseData("nomEntreprise", e.target.value)
+                                        updateEntrepriseData("nom_entreprise", e.target.value)
                                     }
                                     placeholder="Ex: TechCorp Solutions"
                                 />
@@ -311,12 +319,12 @@ export default function ProfilePage(): JSX.Element {
                                 <div className="space-y-2">
                                     <Label htmlFor="nomGerant">Nom du gérant</Label>
                                     <div className="relative">
-                                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                         <Input
                                             id="nomGerant"
-                                            value={entrepriseData.nomGerant || ""}
+                                            value={entrepriseData.nom_gerant || ""}
                                             onChange={(e) =>
-                                                updateEntrepriseData("nomGerant", e.target.value)
+                                                updateEntrepriseData("nom_gerant", e.target.value)
                                             }
                                             placeholder="Prénom Nom"
                                             className="pl-10"
@@ -325,20 +333,41 @@ export default function ProfilePage(): JSX.Element {
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="email">Email professionnel</Label>
-                                <div className="relative">
-                                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="email"
-                                        type="email"
-                                        value={entrepriseData.email || ""}
-                                        onChange={(e) =>
-                                            updateEntrepriseData("email", e.target.value)
-                                        }
-                                        placeholder="contact@entreprise.com"
-                                        className="pl-10"
-                                    />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="email">Email principal</Label>
+                                    <div className="relative">
+                                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="email"
+                                            type="email"
+                                            value={entrepriseData.email || ""}
+                                            onChange={(e) =>
+                                                updateEntrepriseData("email", e.target.value)
+                                            }
+                                            placeholder="votre.email@exemple.com"
+                                            className="pl-10"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="emailProfessionnel">Email professionnel</Label>
+                                    <div className="relative">
+                                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="emailProfessionnel"
+                                            type="email"
+                                            value={entrepriseData.email_professionnel || ""}
+                                            onChange={(e) =>
+                                                updateEntrepriseData(
+                                                    "email_professionnel",
+                                                    e.target.value,
+                                                )
+                                            }
+                                            placeholder="contact@entreprise.com"
+                                            className="pl-10"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -361,12 +390,12 @@ export default function ProfilePage(): JSX.Element {
                             <Separator />
 
                             <div className="space-y-2">
-                                <Label htmlFor="image">Logo de l'entreprise (URL)</Label>
+                                <Label htmlFor="logo">Logo de l'entreprise (URL)</Label>
                                 <Input
-                                    id="image"
+                                    id="logo"
                                     type="url"
-                                    value={entrepriseData.image || ""}
-                                    onChange={(e) => updateEntrepriseData("image", e.target.value)}
+                                    value={entrepriseData.logo || ""}
+                                    onChange={(e) => updateEntrepriseData("logo", e.target.value)}
                                     placeholder="https://exemple.com/logo.png"
                                 />
                             </div>
@@ -395,9 +424,9 @@ export default function ProfilePage(): JSX.Element {
                                         <Input
                                             id="siteWeb"
                                             type="url"
-                                            value={entrepriseData.siteWeb || ""}
+                                            value={entrepriseData.site_web || ""}
                                             onChange={(e) =>
-                                                updateEntrepriseData("siteWeb", e.target.value)
+                                                updateEntrepriseData("site_web", e.target.value)
                                             }
                                             placeholder="https://entreprise.com"
                                             className="pl-10"

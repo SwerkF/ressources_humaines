@@ -42,23 +42,31 @@ export default function JobsPage(): JSX.Element {
     const performSearch = async (): Promise<void> => {
         setIsLoading(true);
 
-        // Simulation d'un délai d'API
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        try {
+            const result = await jobService.searchJobs({
+                page: currentPage,
+                limit: JOBS_PER_PAGE,
+                filters,
+            });
 
-        const result = jobService.searchJobs({
-            page: currentPage,
-            limit: JOBS_PER_PAGE,
-            filters,
-        });
+            setSearchResult(result);
 
-        setSearchResult(result);
-
-        // Si une offre était sélectionnée mais n'est plus dans les résultats, la désélectionner
-        if (selectedJob && !result.jobs.find((job) => job.id === selectedJob.id)) {
-            setSelectedJob(null);
+            // Si une offre était sélectionnée mais n'est plus dans les résultats, la désélectionner
+            if (selectedJob && !result.jobs.find((job) => job.id === selectedJob.id)) {
+                setSelectedJob(null);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la recherche des offres:', error);
+            // En cas d'erreur, afficher un état vide
+            setSearchResult({
+                jobs: [],
+                total: 0,
+                totalPages: 0,
+                currentPage: 1,
+            });
+        } finally {
+            setIsLoading(false);
         }
-
-        setIsLoading(false);
     };
 
     /**
@@ -127,6 +135,7 @@ export default function JobsPage(): JSX.Element {
     // Effet pour déclencher la recherche lors des changements
     useEffect(() => {
         performSearch();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filters, currentPage]);
 
     // Sélectionner automatiquement la première offre lors du changement de résultats

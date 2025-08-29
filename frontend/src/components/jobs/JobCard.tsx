@@ -52,7 +52,7 @@ export default function JobCard({ job, isSelected, onClick }: JobCardProps): JSX
             <CardHeader className="pb-3">
                 <div className="flex items-start gap-3">
                     <img
-                        src={job.image}
+                        src={job.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(job.company)}&size=128&background=random`}
                         alt={`Logo ${job.company}`}
                         className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
                     />
@@ -87,7 +87,7 @@ export default function JobCard({ job, isSelected, onClick }: JobCardProps): JSX
 
                     <div className="flex items-center gap-1">
                         <Briefcase className="h-3 w-3" />
-                        <span>{job.experience}</span>
+                        <span>{job.experience || "Non spécifié"}</span>
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -96,7 +96,7 @@ export default function JobCard({ job, isSelected, onClick }: JobCardProps): JSX
                     </div>
                 </div>
 
-                {job.keywords.length > 0 && (
+                {job.keywords && job.keywords.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-3">
                         {job.keywords.slice(0, 3).map((keyword) => (
                             <Badge key={keyword} variant="outline" className="text-xs">

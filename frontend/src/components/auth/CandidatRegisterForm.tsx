@@ -18,13 +18,13 @@ interface CandidatRegisterFormProps {
 export default function CandidatRegisterForm({ onBack }: CandidatRegisterFormProps): JSX.Element {
     const { registerCandidat, isLoading } = useAuthStore();
     const [formData, setFormData] = useState<RegisterCandidatData>({
-        prenom: "",
-        nom: "",
         email: "",
         password: "",
-        dateNaissance: "",
-        posteActuel: "",
-        entrepriseActuelle: "",
+        first_name: "",
+        last_name: "",
+        date_naissance: "",
+        poste_actuel: "",
+        entreprise_actuelle: "",
         linkedin: "",
     });
     const [error, setError] = useState<string>("");
@@ -49,13 +49,13 @@ export default function CandidatRegisterForm({ onBack }: CandidatRegisterFormPro
 
         // Validation basique
         if (
-            !formData.prenom ||
-            !formData.nom ||
             !formData.email ||
             !formData.password ||
-            !formData.dateNaissance ||
-            !formData.posteActuel ||
-            !formData.entrepriseActuelle
+            !formData.first_name ||
+            !formData.last_name ||
+            !formData.date_naissance ||
+            !formData.poste_actuel ||
+            !formData.entreprise_actuelle
         ) {
             setError("Veuillez remplir tous les champs obligatoires");
             return;
@@ -103,8 +103,8 @@ export default function CandidatRegisterForm({ onBack }: CandidatRegisterFormPro
                             <Input
                                 id="prenom"
                                 type="text"
-                                value={formData.prenom}
-                                onChange={(e) => handleInputChange("prenom", e.target.value)}
+                                value={formData.first_name}
+                                onChange={(e) => handleInputChange("first_name", e.target.value)}
                                 placeholder="Votre prénom"
                                 required
                             />
@@ -114,8 +114,8 @@ export default function CandidatRegisterForm({ onBack }: CandidatRegisterFormPro
                             <Input
                                 id="nom"
                                 type="text"
-                                value={formData.nom}
-                                onChange={(e) => handleInputChange("nom", e.target.value)}
+                                value={formData.last_name}
+                                onChange={(e) => handleInputChange("last_name", e.target.value)}
                                 placeholder="Votre nom"
                                 required
                             />
@@ -151,8 +151,8 @@ export default function CandidatRegisterForm({ onBack }: CandidatRegisterFormPro
                         <Input
                             id="dateNaissance"
                             type="date"
-                            value={formData.dateNaissance}
-                            onChange={(e) => handleInputChange("dateNaissance", e.target.value)}
+                            value={formData.date_naissance}
+                            onChange={(e) => handleInputChange("date_naissance", e.target.value)}
                             required
                         />
                     </div>
@@ -163,8 +163,8 @@ export default function CandidatRegisterForm({ onBack }: CandidatRegisterFormPro
                             <Input
                                 id="posteActuel"
                                 type="text"
-                                value={formData.posteActuel}
-                                onChange={(e) => handleInputChange("posteActuel", e.target.value)}
+                                value={formData.poste_actuel}
+                                onChange={(e) => handleInputChange("poste_actuel", e.target.value)}
                                 placeholder="Ex: Développeur Frontend"
                                 required
                             />
@@ -174,9 +174,9 @@ export default function CandidatRegisterForm({ onBack }: CandidatRegisterFormPro
                             <Input
                                 id="entrepriseActuelle"
                                 type="text"
-                                value={formData.entrepriseActuelle}
+                                value={formData.entreprise_actuelle}
                                 onChange={(e) =>
-                                    handleInputChange("entrepriseActuelle", e.target.value)
+                                    handleInputChange("entreprise_actuelle", e.target.value)
                                 }
                                 placeholder="Ex: TechCorp"
                                 required

@@ -1,504 +1,383 @@
-import { useState, type JSX } from "react";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
+import { useState, useRef, type JSX } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import {
     Upload,
     FileText,
-    User,
     Mail,
-    Phone,
-    Building2,
-    Briefcase,
     Send,
-    Loader2,
-    CheckCircle,
+    AlertCircle,
+    CheckCircle2,
     X,
+    Loader2,
 } from "lucide-react";
-import { useAuthStore } from "@/store/auth";
 import type { Job } from "@/types/job";
-import type { ApplicationFormData, ApplicationCandidatInfo } from "@/types/application";
+import { candidatureService, type CreateCandidatureData } from "@/services/candidatureService";
+import { useAuthStore } from "@/store/auth";
 
 interface ApplicationModalProps {
     job: Job | null;
     isOpen: boolean;
     onClose: () => void;
+    onApplicationSubmitted?: () => void;
 }
 
 /**
- * Modal de candidature pour postuler à une offre d'emploi
- * @param job - Offre d'emploi pour laquelle postuler
- * @param isOpen - État d'ouverture de la modal
- * @param onClose - Fonction appelée pour fermer la modal
- * @returns {JSX.Element}
+ * Modal pour postuler à une offre d'emploi
+ * Permet l'upload d'un CV obligatoire et d'une lettre de motivation optionnelle
  */
 export default function ApplicationModal({
     job,
     isOpen,
     onClose,
+    onApplicationSubmitted,
 }: ApplicationModalProps): JSX.Element {
     const { user } = useAuthStore();
+    const [cvFile, setCvFile] = useState<File | null>(null);
+    const [lettreFile, setLettreFile] = useState<File | null>(null);
+    const [message, setMessage] = useState<string>("");
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-    const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
-    const [error, setError] = useState<string>("");
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
+    const [uploadProgress, setUploadProgress] = useState<number>(0);
 
-    // Initialisation des données candidat depuis le store auth
-    const [formData, setFormData] = useState<ApplicationFormData>(() => {
-        // Pré-remplissage uniquement si l'utilisateur est connecté et est un candidat
-        if (user?.userType === "candidat") {
-            return {
-                coverLetter: "",
-                cvFile: null,
-                candidatInfo: {
-                    prenom: user.prenom,
-                    nom: user.nom,
-                    email: user.email,
-                    telephone: "",
-                    posteActuel: user.posteActuel,
-                    entrepriseActuelle: user.entrepriseActuelle,
-                    linkedin: user.linkedin || "",
-                },
-                acceptTerms: false,
-            };
-        }
-
-        // Formulaire vide si pas connecté ou pas candidat
-        return {
-            coverLetter: "",
-            cvFile: null,
-            candidatInfo: {
-                prenom: "",
-                nom: "",
-                email: "",
-                telephone: "",
-                posteActuel: "",
-                entrepriseActuelle: "",
-                linkedin: "",
-            },
-            acceptTerms: false,
-        };
-    });
+    const cvInputRef = useRef<HTMLInputElement>(null);
+    const lettreInputRef = useRef<HTMLInputElement>(null);
 
     /**
-     * Met à jour les informations du candidat
-     * @param field - Champ à mettre à jour
-     * @param value - Nouvelle valeur
+     * Gère la sélection du fichier CV
      */
-    const updateCandidatInfo = (field: keyof ApplicationCandidatInfo, value: string): void => {
-        setFormData((prev) => ({
-            ...prev,
-            candidatInfo: {
-                ...prev.candidatInfo,
-                [field]: value,
-            },
-        }));
+    const handleCvFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const validationError = candidatureService.validateFile(file, 'cv');
+            if (validationError) {
+                setError(validationError);
+                setCvFile(null);
+                return;
+            }
+            setCvFile(file);
+            setError(null);
+        }
     };
 
     /**
-     * Gère l'upload du fichier CV
-     * @param e - Événement de changement de fichier
+     * Gère la sélection du fichier lettre de motivation
      */
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>): void => {
-        const file = e.target.files?.[0];
+    const handleLettreFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
         if (file) {
-            // Vérification du type de fichier
-            const allowedTypes = [
-                "application/pdf",
-                "application/msword",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ];
-            if (!allowedTypes.includes(file.type)) {
-                setError("Veuillez sélectionner un fichier PDF ou Word (.doc, .docx)");
+            const validationError = candidatureService.validateFile(file, 'lettre');
+            if (validationError) {
+                setError(validationError);
+                setLettreFile(null);
                 return;
             }
-
-            // Vérification de la taille (5MB max)
-            if (file.size > 5 * 1024 * 1024) {
-                setError("Le fichier ne doit pas dépasser 5MB");
-                return;
-            }
-
-            setFormData((prev) => ({ ...prev, cvFile: file }));
-            setError("");
+            setLettreFile(file);
+            setError(null);
         }
     };
 
     /**
      * Supprime le fichier CV sélectionné
      */
-    const removeCvFile = (): void => {
-        setFormData((prev) => ({ ...prev, cvFile: null }));
+    const removeCvFile = () => {
+        setCvFile(null);
+        if (cvInputRef.current) {
+            cvInputRef.current.value = "";
+        }
     };
 
     /**
-     * Valide le formulaire avant soumission
+     * Supprime le fichier lettre sélectionné
      */
-    const validateForm = (): boolean => {
-        if (
-            !formData.candidatInfo.prenom ||
-            !formData.candidatInfo.nom ||
-            !formData.candidatInfo.email
-        ) {
-            setError("Veuillez remplir tous les champs obligatoires");
-            return false;
+    const removeLettreFile = () => {
+        setLettreFile(null);
+        if (lettreInputRef.current) {
+            lettreInputRef.current.value = "";
         }
+    };
 
-        if (!formData.cvFile) {
-            setError("Veuillez joindre votre CV");
-            return false;
-        }
-
-        if (!formData.acceptTerms) {
-            setError("Veuillez accepter les conditions générales");
-            return false;
-        }
-
-        return true;
+    /**
+     * Formate la taille d'un fichier en format lisible
+     */
+    const formatFileSize = (bytes: number): string => {
+        if (bytes === 0) return "0 B";
+        const k = 1024;
+        const sizes = ["B", "KB", "MB", "GB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
     };
 
     /**
      * Soumet la candidature
      */
-    const handleSubmit = async (): Promise<void> => {
-        if (!validateForm()) return;
+    const handleSubmit = async () => {
+        if (!job || !cvFile) {
+            setError("Le CV est obligatoire pour postuler");
+            return;
+        }
 
         setIsSubmitting(true);
-        setError("");
+        setError(null);
+        setSuccess(null);
+        setUploadProgress(0);
 
         try {
-            // Simulation d'envoi de candidature
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            // Simulation du progrès d'upload
+            const progressInterval = setInterval(() => {
+                setUploadProgress(prev => {
+                    if (prev >= 90) {
+                        clearInterval(progressInterval);
+                        return 90;
+                    }
+                    return prev + 10;
+                });
+            }, 200);
 
-            // Simulation de succès
-            setIsSubmitted(true);
+            const candidatureData: CreateCandidatureData = {
+                job: job.id,
+                cv: cvFile,
+                ...(lettreFile && { lettre_motivation: lettreFile }),
+            };
 
-            // Auto-fermeture après 2 secondes
+            const result = await candidatureService.createCandidature(candidatureData);
+            
+            clearInterval(progressInterval);
+            setUploadProgress(100);
+            
+            setSuccess(result.message);
+            
+            // Réinitialiser le formulaire après un délai
             setTimeout(() => {
-                handleClose();
+                resetForm();
+                onClose();
+                onApplicationSubmitted?.();
             }, 2000);
-        } catch (err) {
-            setError("Une erreur est survenue lors de l'envoi de votre candidature");
+
+        } catch (error: any) {
+            setError(error.message || "Erreur lors de l'envoi de la candidature");
+            setUploadProgress(0);
         } finally {
             setIsSubmitting(false);
         }
     };
 
     /**
-     * Ferme la modal et remet à zéro l'état
+     * Réinitialise le formulaire
      */
-    const handleClose = (): void => {
-        setIsSubmitted(false);
-        setError("");
-        setFormData((prev) => ({
-            ...prev,
-            coverLetter: "",
-            cvFile: null,
-            acceptTerms: false,
-        }));
-        onClose();
+    const resetForm = () => {
+        setCvFile(null);
+        setLettreFile(null);
+        setMessage("");
+        setError(null);
+        setSuccess(null);
+        setUploadProgress(0);
+        setIsSubmitting(false);
+        
+        if (cvInputRef.current) cvInputRef.current.value = "";
+        if (lettreInputRef.current) lettreInputRef.current.value = "";
     };
 
     /**
-     * Formate la taille du fichier
-     * @param bytes - Taille en bytes
-     * @returns Taille formatée
+     * Ferme la modal avec réinitialisation
      */
-    const formatFileSize = (bytes: number): string => {
-        if (bytes === 0) return "0 Bytes";
-        const k = 1024;
-        const sizes = ["Bytes", "KB", "MB"];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    const handleClose = () => {
+        if (!isSubmitting) {
+            resetForm();
+            onClose();
+        }
     };
 
     if (!job) return <></>;
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                {isSubmitted ? (
-                    // Écran de confirmation
-                    <div className="text-center py-8">
-                        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                        <DialogTitle className="text-xl mb-2">Candidature envoyée !</DialogTitle>
-                        <DialogDescription className="text-base">
-                            Votre candidature pour le poste de <strong>{job.title}</strong> chez{" "}
-                            <strong>{job.company}</strong> a été envoyée avec succès.
-                            <br />
-                            Vous recevrez une confirmation par email.
-                        </DialogDescription>
+            <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Send className="h-5 w-5" />
+                        Postuler à l'offre
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                    {/* Informations sur l'offre */}
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                        <h3 className="font-semibold">{job.title}</h3>
+                        <p className="text-sm text-muted-foreground">{job.company}</p>
+                        <p className="text-sm text-muted-foreground">{job.location}</p>
                     </div>
-                ) : (
-                    <>
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <Send className="h-5 w-5" />
-                                Postuler à cette offre
-                            </DialogTitle>
-                            <DialogDescription>
-                                Complétez votre candidature pour le poste de{" "}
-                                <strong>{job.title}</strong> chez <strong>{job.company}</strong>
-                            </DialogDescription>
-                        </DialogHeader>
 
-                        <div className="space-y-6">
-                            {/* Récapitulatif de l'offre */}
-                            <div className="bg-muted/30 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <img
-                                        src={job.image}
-                                        alt={`Logo ${job.company}`}
-                                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
-                                    />
-                                    <div className="flex-1">
-                                        <h3 className="font-semibold text-lg">{job.title}</h3>
-                                        <p className="text-muted-foreground">{job.company}</p>
-                                        <div className="flex gap-2 mt-2">
-                                            <Badge variant="secondary">{job.contract}</Badge>
-                                            <Badge variant="outline">{job.work}</Badge>
+                    {/* Informations du candidat */}
+                    <div className="space-y-2">
+                        <Label>Candidat</Label>
+                        <div className="p-3 border rounded-lg bg-background">
+                            <p className="font-medium">
+                                {user?.role === 'candidat' 
+                                    ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                                    : 'Utilisateur'
+                                }
+                            </p>
+                            <p className="text-sm text-muted-foreground">{user?.email}</p>
+                        </div>
+                    </div>
+
+                    {/* Upload CV */}
+                    <div className="space-y-2">
+                        <Label htmlFor="cv-upload">
+                            CV <span className="text-red-500">*</span>
+                        </Label>
+                        <div className="space-y-2">
+                            <Input
+                                ref={cvInputRef}
+                                id="cv-upload"
+                                type="file"
+                                accept=".pdf"
+                                onChange={handleCvFileChange}
+                                disabled={isSubmitting}
+                                className="cursor-pointer"
+                            />
+                            {cvFile && (
+                                <div className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
+                                    <div className="flex items-center gap-2">
+                                        <FileText className="h-4 w-4 text-blue-600" />
+                                        <div>
+                                            <p className="text-sm font-medium">{cvFile.name}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {formatFileSize(cvFile.size)}
+                                            </p>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-
-                            <Separator />
-
-                            {/* Informations personnelles */}
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-2">
-                                    <User className="h-4 w-4" />
-                                    <h3 className="font-semibold">Vos informations</h3>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="prenom">Prénom *</Label>
-                                        <Input
-                                            id="prenom"
-                                            value={formData.candidatInfo.prenom}
-                                            onChange={(e) =>
-                                                updateCandidatInfo("prenom", e.target.value)
-                                            }
-                                            placeholder="Votre prénom"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="nom">Nom *</Label>
-                                        <Input
-                                            id="nom"
-                                            value={formData.candidatInfo.nom}
-                                            onChange={(e) =>
-                                                updateCandidatInfo("nom", e.target.value)
-                                            }
-                                            placeholder="Votre nom"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="email">Email *</Label>
-                                        <div className="relative">
-                                            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                            <Input
-                                                id="email"
-                                                type="email"
-                                                value={formData.candidatInfo.email}
-                                                onChange={(e) =>
-                                                    updateCandidatInfo("email", e.target.value)
-                                                }
-                                                placeholder="votre.email@exemple.com"
-                                                className="pl-10"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="telephone">Téléphone</Label>
-                                        <div className="relative">
-                                            <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                            <Input
-                                                id="telephone"
-                                                type="tel"
-                                                value={formData.candidatInfo.telephone}
-                                                onChange={(e) =>
-                                                    updateCandidatInfo("telephone", e.target.value)
-                                                }
-                                                placeholder="06 12 34 56 78"
-                                                className="pl-10"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="posteActuel">Poste actuel</Label>
-                                        <div className="relative">
-                                            <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                            <Input
-                                                id="posteActuel"
-                                                value={formData.candidatInfo.posteActuel}
-                                                onChange={(e) =>
-                                                    updateCandidatInfo(
-                                                        "posteActuel",
-                                                        e.target.value,
-                                                    )
-                                                }
-                                                placeholder="Ex: Développeur Frontend"
-                                                className="pl-10"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="entrepriseActuelle">
-                                            Entreprise actuelle
-                                        </Label>
-                                        <div className="relative">
-                                            <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                            <Input
-                                                id="entrepriseActuelle"
-                                                value={formData.candidatInfo.entrepriseActuelle}
-                                                onChange={(e) =>
-                                                    updateCandidatInfo(
-                                                        "entrepriseActuelle",
-                                                        e.target.value,
-                                                    )
-                                                }
-                                                placeholder="Ex: TechCorp"
-                                                className="pl-10"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <Separator />
-
-                            {/* Upload CV */}
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4" />
-                                    <h3 className="font-semibold">Votre CV *</h3>
-                                </div>
-
-                                {!formData.cvFile ? (
-                                    <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                                        <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                                        <p className="text-sm text-muted-foreground mb-2">
-                                            Glissez-déposez votre CV ou cliquez pour sélectionner
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mb-4">
-                                            Formats acceptés: PDF, DOC, DOCX (max 5MB)
-                                        </p>
-                                        <input
-                                            type="file"
-                                            accept=".pdf,.doc,.docx"
-                                            onChange={handleFileUpload}
-                                            className="hidden"
-                                            id="cv-upload"
-                                        />
-                                        <Button variant="outline" asChild>
-                                            <label htmlFor="cv-upload" className="cursor-pointer">
-                                                Sélectionner un fichier
-                                            </label>
-                                        </Button>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                                        <div className="flex items-center gap-3">
-                                            <FileText className="h-8 w-8 text-primary" />
-                                            <div>
-                                                <p className="font-medium">
-                                                    {formData.cvFile.name}
-                                                </p>
-                                                <p className="text-sm text-muted-foreground">
-                                                    {formatFileSize(formData.cvFile.size)}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={removeCvFile}
-                                            className="text-muted-foreground hover:text-destructive"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                )}
-                            </div>
-
-                            <Separator />
-
-                            {/* Lettre de motivation */}
-                            <div className="space-y-4">
-                                <Label htmlFor="coverLetter">
-                                    Lettre de motivation (optionnelle)
-                                </Label>
-                                <Textarea
-                                    id="coverLetter"
-                                    placeholder="Expliquez pourquoi ce poste vous intéresse et ce que vous pouvez apporter à l'entreprise..."
-                                    value={formData.coverLetter}
-                                    onChange={(e) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            coverLetter: e.target.value,
-                                        }))
-                                    }
-                                    className="min-h-[120px]"
-                                />
-                            </div>
-
-                            {/* Conditions générales */}
-                            <div className="flex items-start space-x-2">
-                                <Checkbox
-                                    id="acceptTerms"
-                                    checked={formData.acceptTerms}
-                                    onCheckedChange={(checked) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            acceptTerms: checked as boolean,
-                                        }))
-                                    }
-                                />
-                                <Label htmlFor="acceptTerms" className="text-sm leading-5">
-                                    J'accepte les conditions générales d'utilisation et autorise le
-                                    traitement de mes données personnelles dans le cadre de cette
-                                    candidature.
-                                </Label>
-                            </div>
-
-                            {/* Message d'erreur */}
-                            {error && (
-                                <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-                                    {error}
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={removeCvFile}
+                                        disabled={isSubmitting}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
                                 </div>
                             )}
                         </div>
+                        <p className="text-xs text-muted-foreground">
+                            Format PDF uniquement, taille maximale 5MB
+                        </p>
+                    </div>
 
-                        <DialogFooter>
-                            <Button variant="outline" onClick={handleClose}>
-                                Annuler
-                            </Button>
-                            <Button onClick={handleSubmit} disabled={isSubmitting}>
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {isSubmitting ? "Envoi en cours..." : "Envoyer ma candidature"}
-                            </Button>
-                        </DialogFooter>
-                    </>
-                )}
+                    {/* Upload Lettre de motivation */}
+                    <div className="space-y-2">
+                        <Label htmlFor="lettre-upload">Lettre de motivation (optionnelle)</Label>
+                        <div className="space-y-2">
+                            <Input
+                                ref={lettreInputRef}
+                                id="lettre-upload"
+                                type="file"
+                                accept=".pdf"
+                                onChange={handleLettreFileChange}
+                                disabled={isSubmitting}
+                                className="cursor-pointer"
+                            />
+                            {lettreFile && (
+                                <div className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
+                                    <div className="flex items-center gap-2">
+                                        <Mail className="h-4 w-4 text-green-600" />
+                                        <div>
+                                            <p className="text-sm font-medium">{lettreFile.name}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {formatFileSize(lettreFile.size)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={removeLettreFile}
+                                        disabled={isSubmitting}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Message personnalisé */}
+                    <div className="space-y-2">
+                        <Label htmlFor="message">Message personnalisé (optionnel)</Label>
+                        <Textarea
+                            id="message"
+                            placeholder="Écrivez un message pour accompagner votre candidature..."
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            disabled={isSubmitting}
+                            rows={3}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Ce message sera visible par le recruteur
+                        </p>
+                    </div>
+
+                    {/* Barre de progression */}
+                    {isSubmitting && uploadProgress > 0 && (
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span>Envoi en cours...</span>
+                                <span>{uploadProgress}%</span>
+                            </div>
+                            <Progress value={uploadProgress} className="h-2" />
+                        </div>
+                    )}
+
+                    {/* Messages d'erreur et de succès */}
+                    {error && (
+                        <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                    )}
+
+                    {success && (
+                        <Alert className="border-green-200 bg-green-50 text-green-800">
+                            <CheckCircle2 className="h-4 w-4" />
+                            <AlertDescription>{success}</AlertDescription>
+                        </Alert>
+                    )}
+
+                    {/* Boutons */}
+                    <div className="flex gap-3 pt-4">
+                        <Button
+                            variant="outline"
+                            onClick={handleClose}
+                            disabled={isSubmitting}
+                            className="flex-1"
+                        >
+                            Annuler
+                        </Button>
+                        <Button
+                            onClick={handleSubmit}
+                            disabled={!cvFile || isSubmitting}
+                            className="flex-1"
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Envoi...
+                                </>
+                            ) : (
+                                <>
+                                    <Send className="h-4 w-4 mr-2" />
+                                    Postuler
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                </div>
             </DialogContent>
         </Dialog>
     );

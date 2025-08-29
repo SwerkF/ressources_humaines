@@ -20,15 +20,15 @@ export default function EntrepriseRegisterForm({
 }: EntrepriseRegisterFormProps): JSX.Element {
     const { registerEntreprise, isLoading } = useAuthStore();
     const [formData, setFormData] = useState<RegisterEntrepriseData>({
-        nomEntreprise: "",
-        siret: "",
-        nomGerant: "",
         email: "",
         password: "",
+        nom_entreprise: "",
+        siret: "",
+        nom_gerant: "",
+        email_professionnel: "",
         localisation: "",
-        image: "",
-        linkedin: "",
-        siteWeb: "",
+        logo: undefined,
+        site_web: "",
     });
     const [error, setError] = useState<string>("");
 
@@ -43,6 +43,16 @@ export default function EntrepriseRegisterForm({
     };
 
     /**
+     * Gère l'upload du fichier logo
+     * @param e - Événement de changement de fichier
+     */
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+        const file = e.target.files?.[0];
+        setFormData((prev) => ({ ...prev, logo: file }));
+        if (error) setError("");
+    };
+
+    /**
      * Gère la soumission du formulaire
      * @param e - Événement de soumission
      */
@@ -52,10 +62,11 @@ export default function EntrepriseRegisterForm({
 
         // Validation basique
         if (
-            !formData.nomEntreprise ||
+            !formData.nom_entreprise ||
             !formData.siret ||
-            !formData.nomGerant ||
+            !formData.nom_gerant ||
             !formData.email ||
+            !formData.email_professionnel ||
             !formData.password ||
             !formData.localisation
         ) {
@@ -104,8 +115,8 @@ export default function EntrepriseRegisterForm({
                         <Input
                             id="nomEntreprise"
                             type="text"
-                            value={formData.nomEntreprise}
-                            onChange={(e) => handleInputChange("nomEntreprise", e.target.value)}
+                            value={formData.nom_entreprise}
+                            onChange={(e) => handleInputChange("nom_entreprise", e.target.value)}
                             placeholder="Ex: TechCorp Solutions"
                             required
                         />
@@ -128,24 +139,39 @@ export default function EntrepriseRegisterForm({
                             <Input
                                 id="nomGerant"
                                 type="text"
-                                value={formData.nomGerant}
-                                onChange={(e) => handleInputChange("nomGerant", e.target.value)}
+                                value={formData.nom_gerant}
+                                onChange={(e) => handleInputChange("nom_gerant", e.target.value)}
                                 placeholder="Prénom Nom"
                                 required
                             />
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="email">Email professionnel *</Label>
-                        <Input
-                            id="email"
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => handleInputChange("email", e.target.value)}
-                            placeholder="contact@entreprise.com"
-                            required
-                        />
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="email">Email personnel *</Label>
+                            <Input
+                                id="email"
+                                type="email"
+                                value={formData.email}
+                                onChange={(e) => handleInputChange("email", e.target.value)}
+                                placeholder="votre.email@exemple.com"
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="emailProfessionnel">Email professionnel *</Label>
+                            <Input
+                                id="emailProfessionnel"
+                                type="email"
+                                value={formData.email_professionnel}
+                                onChange={(e) =>
+                                    handleInputChange("email_professionnel", e.target.value)
+                                }
+                                placeholder="contact@entreprise.com"
+                                required
+                            />
+                        </div>
                     </div>
 
                     <div className="space-y-2">
@@ -173,37 +199,28 @@ export default function EntrepriseRegisterForm({
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="image">Logo de l'entreprise (URL)</Label>
+                        <Label htmlFor="logo">Logo de l'entreprise (optionnel)</Label>
                         <Input
-                            id="image"
-                            type="url"
-                            value={formData.image}
-                            onChange={(e) => handleInputChange("image", e.target.value)}
-                            placeholder="https://exemple.com/logo.png"
+                            id="logo"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="cursor-pointer"
                         />
+                        <p className="text-xs text-muted-foreground">
+                            Formats acceptés : JPG, JPEG, PNG, GIF - Taille max : 5MB
+                        </p>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="linkedin">LinkedIn (optionnel)</Label>
-                            <Input
-                                id="linkedin"
-                                type="url"
-                                value={formData.linkedin}
-                                onChange={(e) => handleInputChange("linkedin", e.target.value)}
-                                placeholder="https://linkedin.com/company/entreprise"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="siteWeb">Site web (optionnel)</Label>
-                            <Input
-                                id="siteWeb"
-                                type="url"
-                                value={formData.siteWeb}
-                                onChange={(e) => handleInputChange("siteWeb", e.target.value)}
-                                placeholder="https://entreprise.com"
-                            />
-                        </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="siteWeb">Site web (optionnel)</Label>
+                        <Input
+                            id="siteWeb"
+                            type="url"
+                            value={formData.site_web}
+                            onChange={(e) => handleInputChange("site_web", e.target.value)}
+                            placeholder="https://entreprise.com"
+                        />
                     </div>
 
                     <Button type="submit" className="w-full" size="lg" disabled={isLoading}>

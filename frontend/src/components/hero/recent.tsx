@@ -1,16 +1,50 @@
+import { useState, useEffect } from "react";
 import SpotlightCard from "../spotlightcard/spotlightcard";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Link } from "react-router-dom";
-import { MapPin, Euro, Briefcase, Clock } from "lucide-react";
-import { mockJobs } from "@/data/mockJobs";
+import { MapPin, Euro, Briefcase, Clock, Loader2, AlertCircle } from "lucide-react";
+import { jobService } from "@/services/jobService";
 import type { Job } from "@/types/job";
 
 export default function Recent() {
-    // Récupérer les 6 offres les plus récentes
-    const recentOffers: Job[] = mockJobs
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-        .slice(0, 6);
+    const [recentOffers, setRecentOffers] = useState<Job[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
+
+    // Charger les offres récentes depuis l'API
+    useEffect(() => {
+        const loadRecentOffers = async () => {
+            try {
+                setIsLoading(true);
+                setError(null);
+
+                // Récupérer les offres récentes (page 1, 6 résultats)
+                const result = await jobService.searchJobs({
+                    page: 1,
+                    limit: 6,
+                    filters: {
+                        search: "",
+                        contract: "all",
+                        work: "all",
+                        salaryMin: 0,
+                        salaryMax: 100000,
+                        dateRange: "all"
+                    }
+                });
+
+                // Les offres sont déjà triées par date de création décroissante côté API
+                setRecentOffers(result.jobs);
+            } catch (err: any) {
+                console.error('Erreur chargement offres récentes:', err);
+                setError('Erreur lors du chargement des offres récentes');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadRecentOffers();
+    }, []);
 
     /**
      * Tronque un texte à la longueur maximale spécifiée
@@ -52,13 +86,78 @@ export default function Recent() {
         });
     };
 
+    // État de chargement
+    if (isLoading) {
+        return (
+            <div className="relative min-h-[80vh] w-full flex flex-col items-center justify-center max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+                <div className="text-center mb-12">
+                    <h1 className="text-4xl font-bold mb-4">Offres Récentes</h1>
+                    <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                        Découvrez les dernières opportunités d'emploi publiées par nos entreprises partenaires
+                    </p>
+                </div>
+                
+                <div className="flex flex-col items-center justify-center py-16">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <p className="text-muted-foreground">Chargement des offres récentes...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // État d'erreur
+    if (error) {
+        return (
+            <div className="relative min-h-[80vh] w-full flex flex-col items-center justify-center max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+                <div className="text-center mb-12">
+                    <h1 className="text-4xl font-bold mb-4">Offres Récentes</h1>
+                    <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                        Découvrez les dernières opportunités d'emploi publiées par nos entreprises partenaires
+                    </p>
+                </div>
+                
+                <div className="flex flex-col items-center justify-center py-16">
+                    <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+                    <p className="text-destructive mb-4">{error}</p>
+                    <Button 
+                        onClick={() => window.location.reload()} 
+                        variant="outline"
+                    >
+                        Réessayer
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
+    // État vide
+    if (recentOffers.length === 0) {
+        return (
+            <div className="relative min-h-[80vh] w-full flex flex-col items-center justify-center max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+                <div className="text-center mb-12">
+                    <h1 className="text-4xl font-bold mb-4">Offres Récentes</h1>
+                    <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                        Découvrez les dernières opportunités d'emploi publiées par nos entreprises partenaires
+                    </p>
+                </div>
+                
+                <div className="flex flex-col items-center justify-center py-16">
+                    <Briefcase className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground mb-4">Aucune offre d'emploi disponible pour le moment</p>
+                    <Button asChild variant="outline">
+                        <Link to="/jobs">Explorer toutes les offres</Link>
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="relative min-h-[80vh] w-full flex flex-col items-center justify-center max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
             <div className="text-center mb-12">
                 <h1 className="text-4xl font-bold mb-4">Offres Récentes</h1>
                 <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                    Découvrez les dernières opportunités d'emploi publiées par nos entreprises
-                    partenaires
+                    Découvrez les dernières opportunités d'emploi publiées par nos entreprises partenaires
                 </p>
             </div>
 
@@ -72,6 +171,11 @@ export default function Recent() {
                                     src={offer.image}
                                     alt={`Logo ${offer.company}`}
                                     className="h-12 w-12 rounded-lg object-cover"
+                                    onError={(e) => {
+                                        // Fallback en cas d'erreur d'image
+                                        const target = e.target as HTMLImageElement;
+                                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(offer.company)}&size=48&background=random`;
+                                    }}
                                 />
                                 <div className="flex-1">
                                     <div className="font-semibold text-lg">{offer.company}</div>
@@ -114,12 +218,12 @@ export default function Recent() {
                             <div className="flex flex-wrap gap-2 mb-6">
                                 <Badge variant="secondary">{offer.contract}</Badge>
                                 <Badge variant="outline">{offer.work}</Badge>
-                                {offer.keywords.slice(0, 2).map((keyword) => (
+                                {offer.keywords && offer.keywords.slice(0, 2).map((keyword) => (
                                     <Badge key={keyword} variant="outline" className="text-xs">
                                         {keyword}
                                     </Badge>
                                 ))}
-                                {offer.keywords.length > 2 && (
+                                {offer.keywords && offer.keywords.length > 2 && (
                                     <Badge variant="outline" className="text-xs">
                                         +{offer.keywords.length - 2}
                                     </Badge>
@@ -129,7 +233,7 @@ export default function Recent() {
                             {/* Bouton d'action */}
                             <div className="mt-auto">
                                 <Button asChild className="w-full">
-                                    <Link to="/jobs">Voir l'offre</Link>
+                                    <Link to={`/jobs?selected=${offer.id}`}>Voir l'offre</Link>
                                 </Button>
                             </div>
                         </SpotlightCard>
