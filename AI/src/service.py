@@ -95,4 +95,33 @@ class ScoringService:
         scored.sort(key=lambda s: s.score_0_100, reverse=True)
         return scored[: max(1, int(top_k))]
 
+    def rank_candidates_for_offer(self, offer: Dict[str, Any] | str, cv_paths_or_texts: Iterable[str], top_k: int = 10) -> List[ScoreOutput]:
+        job_text = synthesize_job_text(offer)
+        job_vec = self._encode_single(job_text)
 
+        cv_texts: List[str] = []
+        cv_ids: List[str] = []
+        for i, cv_input in enumerate(cv_paths_or_texts):
+            if Path(cv_input).exists():
+                cv_text = clean_text(read_any(cv_input))
+                cv_id = Path(cv_input).stem  # nom fichier sans extension
+            else:
+                cv_text = clean_text(cv_input)
+                cv_id = f"cv_{i}"
+            cv_texts.append(cv_text)
+            cv_ids.append(cv_id)
+
+        cv_vecs = self.encoder.encode(cv_texts)
+
+        scored: List[ScoreOutput] = []
+        for cv_vec, cv_id in zip(cv_vecs, cv_ids):
+            sim = cosine_similarity(cv_vec, job_vec)
+            scored.append(ScoreOutput(
+                score_0_100=to_score(sim), 
+                similarity=sim, 
+                offer_id=cv_id,  # ici c'est l'ID du candidat
+                meta={"encoder": str(config.encoder_name)}
+            ))
+
+        scored.sort(key=lambda s: s.score_0_100, reverse=True)
+        return scored[: max(1, int(top_k))]

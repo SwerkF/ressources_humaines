@@ -17,8 +17,29 @@ class BiEncoder:
     """
 
     def __init__(self, model_name_or_dir: str | Path | None = None, device: str | None = None):
-        name_or_dir = str(model_name_or_dir or config.model_dir or config.encoder_name)
-        self.model = SentenceTransformer(name_or_dir, device=device or config.device)
+        source = self._resolve_source(model_name_or_dir)
+        self.model = SentenceTransformer(source, device=device or config.device)
+
+    @staticmethod
+    def _resolve_source(model_name_or_dir: str | Path | None) -> str:
+        # 1) Si un chemin local valide est fourni (ou config.model_dir), on le prend
+        candidates: list[Path] = []
+        if model_name_or_dir is not None:
+            candidates.append(Path(model_name_or_dir))
+        else:
+            candidates.append(Path(config.model_dir))
+
+        for cand in candidates:
+            try:
+                if cand and cand.exists() and cand.is_dir():
+                    # Vérifie présence de fichiers typiques Sentence-Transformers/HF
+                    if (cand / "config.json").exists() or (cand / "modules.json").exists() or (cand / "sentence_bert_config.json").exists():
+                        return str(cand)
+            except Exception:
+                pass
+
+        # 2) Fallback: modèle pré-entraîné par défaut
+        return str(config.encoder_name)
 
     def encode(self, texts: Iterable[str], batch_size: int = 32, normalize: bool = True) -> List[list[float]]:
         return self.model.encode(
@@ -33,4 +54,3 @@ class BiEncoder:
         target = Path(target_dir)
         target.mkdir(parents=True, exist_ok=True)
         self.model.save(str(target))
-
