@@ -201,17 +201,17 @@ class CVAnalysis(models.Model):
     )
     
     # Informations extraites
-    skills_extracted = models.JSONField(
-        default=list,
-        help_text='Liste des compétences extraites du CV'
+    skills = models.TextField(
+        default="[]",
+        help_text='Liste des compétences extraites du CV (format JSON string)'
     )
-    experience_extracted = models.JSONField(
-        default=list,
-        help_text='Informations d\'expérience extraites'
+    experience = models.TextField(
+        default="[]",
+        help_text='Informations d\'expérience extraites (format JSON string)'
     )
-    education_extracted = models.JSONField(
-        default=list,
-        help_text='Informations de formation extraites'
+    education = models.TextField(
+        default="[]",
+        help_text='Informations de formation extraites (format JSON string)'
     )
     
     # Métadonnées
@@ -221,18 +221,12 @@ class CVAnalysis(models.Model):
         null=True,
         blank=True
     )
-    status = models.CharField(
-        max_length=20,
-        choices=[
-            ('pending', 'En cours'),
-            ('completed', 'Terminé'),
-            ('failed', 'Échoué'),
-        ],
-        default='pending'
-    )
-    error_message = models.TextField(
-        blank=True,
-        help_text='Message d\'erreur si l\'analyse a échoué'
+    
+    # Champ manquant dans la base
+    raw_analysis = models.TextField(
+        default="",
+        help_text='Analyse brute de l\'IA',
+        blank=True
     )
     
     class Meta:
@@ -243,4 +237,4 @@ class CVAnalysis(models.Model):
     def __str__(self):
         if self.overall_score is not None:
             return f"Analyse {self.candidature} - Score: {self.overall_score:.2f}"
-        return f"Analyse {self.candidature} - {self.get_status_display()}"
+        return f"Analyse {self.candidature} - En cours"

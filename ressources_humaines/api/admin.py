@@ -98,24 +98,24 @@ class JobAdmin(admin.ModelAdmin):
 
 @admin.register(CVAnalysis)
 class CVAnalysisAdmin(admin.ModelAdmin):
-    list_display = ('candidature', 'overall_score', 'skill_score', 'experience_score', 'education_score', 'status', 'analysis_date')
-    list_filter = ('status', 'analysis_date', 'overall_score')
+    list_display = ('candidature', 'overall_score', 'skill_score', 'experience_score', 'education_score', 'analysis_date')
+    list_filter = ('analysis_date', 'overall_score')
     search_fields = ('candidature__candidat__email', 'candidature__job__titre')
-    readonly_fields = ('candidature', 'analysis_date', 'processing_time', 'skills_extracted', 'experience_extracted', 'education_extracted')
+    readonly_fields = ('candidature', 'analysis_date', 'processing_time', 'skills', 'experience', 'education')
     
     fieldsets = (
         ('Informations générales', {
-            'fields': ('candidature', 'status', 'analysis_date')
+            'fields': ('candidature', 'analysis_date')
         }),
         ('Scores', {
             'fields': ('overall_score', 'skill_score', 'experience_score', 'education_score')
         }),
         ('Données extraites', {
-            'fields': ('skills_extracted', 'experience_extracted', 'education_extracted'),
+            'fields': ('skills', 'experience', 'education'),
             'classes': ('collapse',)
         }),
         ('Métadonnées', {
-            'fields': ('processing_time', 'error_message'),
+            'fields': ('processing_time',),
             'classes': ('collapse',)
         }),
     )
