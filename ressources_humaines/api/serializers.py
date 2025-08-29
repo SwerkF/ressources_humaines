@@ -2,6 +2,9 @@ from rest_framework import serializers
 from django.core.validators import RegexValidator, FileExtensionValidator
 from .models import CustomUser, Candidat, Recruteur, Candidature, Job
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PasswordMixin:
     password = serializers.CharField(write_only=True, required=False)
@@ -54,6 +57,14 @@ class RecruteurSerializer(PasswordMixin, serializers.ModelSerializer):
         )]
     )
     
+    logo = serializers.ImageField(
+        required=False,
+        validators=[FileExtensionValidator(
+            allowed_extensions=['jpg', 'jpeg', 'png', 'gif'],
+            message='Seuls les fichiers JPG, JPEG, PNG et GIF sont autorisés pour le logo.'
+        )]
+    )
+    
     class Meta:
         model = Recruteur
         fields = [
@@ -62,6 +73,10 @@ class RecruteurSerializer(PasswordMixin, serializers.ModelSerializer):
             'localisation', 'logo', 'site_web',
         ]
         read_only_fields = ['role']
+        extra_kwargs = {
+            'nom_gerant': {'required': True},
+            'localisation': {'required': True},
+        }
 
     def validate_email_professionnel(self, value):
         if Recruteur.objects.filter(email_professionnel=value).exists():
@@ -69,13 +84,39 @@ class RecruteurSerializer(PasswordMixin, serializers.ModelSerializer):
         return value
 
     def validate_siret(self, value):
-        if Recruteur.objects.filter(siret=value).exists():
+        # Nettoyer le SIRET en retirant tous les espaces et caractères non numériques
+        cleaned_siret = re.sub(r'[^\d]', '', value)
+        logger.debug(f"🧹 [RecruteurSerializer] SIRET nettoyé: '{value}' -> '{cleaned_siret}'")
+        
+        if len(cleaned_siret) != 14:
+            raise serializers.ValidationError(f"Le SIRET doit contenir exactement 14 chiffres (reçu: {len(cleaned_siret)} chiffres).")
+        
+        if Recruteur.objects.filter(siret=cleaned_siret).exists():
             raise serializers.ValidationError("Ce SIRET est déjà utilisé.")
+        
+        return cleaned_siret
+
+    def validate_logo(self, value):
+        if value and value.size > 5 * 1024 * 1024:  # 5MB
+            raise serializers.ValidationError('Le fichier logo ne doit pas dépasser 5MB.')
         return value
 
     def create(self, validated_data):
-        validated_data['role'] = 'recruteur'
-        return super().create(validated_data)
+        logger.info(f"🔧 [RecruteurSerializer] Début de la création du recruteur")
+        logger.debug(f"📊 [RecruteurSerializer] Données validées: {list(validated_data.keys())}")
+        
+        try:
+            validated_data['role'] = 'recruteur'
+            logger.debug(f"✅ [RecruteurSerializer] Rôle défini: recruteur")
+            
+            user = super().create(validated_data)
+            logger.info(f"💾 [RecruteurSerializer] Recruteur créé avec succès - ID: {user.id}, Email: {user.email}")
+            
+            return user
+        except Exception as e:
+            logger.error(f"💥 [RecruteurSerializer] Erreur lors de la création: {type(e).__name__}: {str(e)}")
+            logger.error(f"📍 [RecruteurSerializer] Traceback:", exc_info=True)
+            raise
 
 
 class LoginSerializer(serializers.Serializer):

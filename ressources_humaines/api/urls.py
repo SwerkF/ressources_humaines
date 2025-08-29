@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     UserViewSet, CandidatViewSet, RecruteurViewSet, CandidatureViewSet, JobViewSet,
     CandidatRegisterView, RecruteurRegisterView,
-    LoginView, LogoutView, MeView
+    LoginView, LogoutView, MeView, admin_dashboard_stats
 )
 
 router = DefaultRouter()
@@ -19,6 +19,7 @@ urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/logout/', LogoutView.as_view(), name='logout'),
     path('auth/me/', MeView.as_view(), name='me'),
+    path('admin/dashboard/stats/', admin_dashboard_stats, name='admin-dashboard-stats'),
 ]
 
 urlpatterns += router.urls

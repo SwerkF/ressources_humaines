@@ -65,10 +65,10 @@ class Candidat(CustomUser):
 class Recruteur(CustomUser):
     nom_entreprise = models.CharField(max_length=255)
     siret = models.CharField(max_length=14, unique=True)
-    nom_gerant = models.CharField(max_length=255, null=True, blank=True)
+    nom_gerant = models.CharField(max_length=255)
     email_professionnel = models.EmailField(unique=True)
-    localisation = models.CharField(max_length=255, null=True, blank=True)
-    logo = models.URLField(null=True, blank=True)
+    localisation = models.CharField(max_length=255)
+    logo = models.ImageField(upload_to='recruteurs/logos/', null=True, blank=True, help_text='Logo de l\'entreprise')
     site_web = models.URLField(null=True, blank=True)
 
     def save(self, *args, **kwargs):

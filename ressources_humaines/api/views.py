@@ -2,10 +2,17 @@ from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
 from rest_framework import viewsets, permissions, generics, status
 from rest_framework.response import Response
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authtoken.models import Token
 from django.db import IntegrityError
+from django.db.models import Count, Q, Avg
+from django.utils import timezone
+from datetime import datetime, timedelta
+from collections import defaultdict
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .models import CustomUser, Candidat, Recruteur, Candidature, Job
 from .serializers import (
@@ -211,23 +218,61 @@ class RecruteurRegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
 
     def create(self, request, *args, **kwargs):
+        logger.info(f"🚀 [RecruteurRegisterView] Tentative d'inscription recruteur")
+        logger.debug(f"📋 [RecruteurRegisterView] Données reçues: {list(request.data.keys())}")
+        logger.debug(f"📋 [RecruteurRegisterView] Content-Type: {request.content_type}")
+        
         try:
+            # Log des données reçues (sans les informations sensibles)
+            safe_data = {k: v for k, v in request.data.items() if k not in ['password']}
+            logger.debug(f"📊 [RecruteurRegisterView] Données (sans mot de passe): {safe_data}")
+            
             ser = self.get_serializer(data=request.data)
-            ser.is_valid(raise_exception=True)
+            logger.debug(f"🔍 [RecruteurRegisterView] Sérialiseur créé")
+            
+            if not ser.is_valid():
+                logger.error(f"❌ [RecruteurRegisterView] Erreurs de validation: {ser.errors}")
+                return Response({
+                    'detail': 'Données de formulaire invalides',
+                    'errors': ser.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            logger.info(f"✅ [RecruteurRegisterView] Validation réussie")
+            
             user = ser.save()
-            token, _ = Token.objects.get_or_create(user=user)
+            logger.info(f"💾 [RecruteurRegisterView] Utilisateur créé avec ID: {user.id}")
+            
+            token, created = Token.objects.get_or_create(user=user)
+            if created:
+                logger.info(f"🔑 [RecruteurRegisterView] Nouveau token créé")
+            else:
+                logger.info(f"🔑 [RecruteurRegisterView] Token existant réutilisé")
+            
+            logger.info(f"🎉 [RecruteurRegisterView] Inscription réussie pour: {user.email}")
+            
             return Response({
                 'token': token.key, 
                 'user': RecruteurSerializer(user).data,
                 'message': 'Recruteur créé avec succès'
             }, status=status.HTTP_201_CREATED)
-        except IntegrityError:
+            
+        except IntegrityError as e:
+            logger.error(f"🚫 [RecruteurRegisterView] Erreur d'intégrité: {str(e)}")
             return Response({
                 'detail': 'Un utilisateur avec cet email ou SIRET existe déjà.'
             }, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
+            
+        except ValidationError as e:
+            logger.error(f"🚫 [RecruteurRegisterView] Erreur de validation Django: {str(e)}")
             return Response({
-                'detail': 'Erreur lors de la création du compte.'
+                'detail': f'Erreur de validation: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.error(f"💥 [RecruteurRegisterView] Erreur inattendue: {type(e).__name__}: {str(e)}")
+            logger.error(f"📍 [RecruteurRegisterView] Traceback:", exc_info=True)
+            return Response({
+                'detail': f'Erreur lors de la création du compte: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -236,17 +281,30 @@ class LoginView(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        logger.info(f"🔐 [LoginView] Tentative de connexion reçue")
+        logger.debug(f"📋 [LoginView] Données reçues: {request.data}")
+        
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
+        
+        logger.info(f"🔍 [LoginView] Authentification pour: {email}")
 
         user = authenticate(request, username=email, password=password)
         if not user:
+            logger.warning(f"❌ [LoginView] Échec d'authentification pour: {email}")
             return Response({'detail': 'Identifiants invalides.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        token, _ = Token.objects.get_or_create(user=user)
+        logger.info(f"✅ [LoginView] Authentification réussie pour: {email} (rôle: {user.role})")
+        token, created = Token.objects.get_or_create(user=user)
+        if created:
+            logger.info(f"🔑 [LoginView] Nouveau token créé pour: {email}")
+        else:
+            logger.info(f"🔑 [LoginView] Token existant utilisé pour: {email}")
+            
         data = {'token': token.key, 'role': user.role, 'id': user.id}
+        logger.info(f"📤 [LoginView] Réponse envoyée: {{'token': '***', 'role': '{user.role}', 'id': {user.id}}}")
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -258,31 +316,80 @@ class LogoutView(generics.GenericAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class MeView(generics.RetrieveAPIView):
+class MeView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        user = request.user
+    def get_serializer_class(self):
+        user = self.request.user
         if user.role == 'candidat':
-            obj = Candidat.objects.filter(pk=user.pk).first()
-            return Response(CandidatSerializer(obj).data if obj else {}, status=200)
-        if user.role == 'recruteur':
-            obj = Recruteur.objects.filter(pk=user.pk).first()
-            return Response(RecruteurSerializer(obj).data if obj else {}, status=200)
-        return Response(UserSerializer(user).data, status=200)
+            return CandidatSerializer
+        elif user.role == 'recruteur':
+            return RecruteurSerializer
+        return UserSerializer
+
+    def get_object(self):
+        user = self.request.user
+        if user.role == 'candidat':
+            return Candidat.objects.filter(pk=user.pk).first()
+        elif user.role == 'recruteur':
+            return Recruteur.objects.filter(pk=user.pk).first()
+        return user
+
+    def get(self, request):
+        """
+        Récupère les informations du profil de l'utilisateur connecté
+        """
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = self.get_serializer(obj)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def put(self, request):
+        """
+        Met à jour complètement le profil de l'utilisateur connecté
+        """
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(obj, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request):
+        """
+        Met à jour partiellement le profil de l'utilisateur connecté
+        """
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(obj, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request):
+        """
+        Supprime le profil de l'utilisateur connecté
+        """
+        obj = self.get_object()
+        if not obj:
+            return Response({'detail': 'Profil introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class CandidatureViewSet(viewsets.ModelViewSet):
     serializer_class = CandidatureSerializer
     permission_classes = [IsCandidatOwnerOrRecruteurOrAdmin]
 
-    def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return Candidature.objects.none()
-        
-        user_role = getattr(user, 'role', None)
-        
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
@@ -396,3 +503,129 @@ class JobViewSet(viewsets.ModelViewSet):
         jobs = Job.objects.filter(active=True)
         serializer = self.get_serializer(jobs, many=True)
         return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdmin])
+def admin_dashboard_stats(request):
+    """
+    Endpoint pour récupérer toutes les statistiques du dashboard administrateur
+    """
+    try:
+        total_users = CustomUser.objects.count()
+        total_candidats = Candidat.objects.count()
+        total_entreprises = Recruteur.objects.count()
+        total_jobs = Job.objects.count()
+        total_applications = Candidature.objects.count()
+        active_jobs = Job.objects.filter(active=True).count()
+        inactive_jobs = Job.objects.filter(active=False).count()
+        
+        accepted_applications = Candidature.objects.filter(statut='acceptee').count()
+        rejected_applications = Candidature.objects.filter(statut='refusee').count()
+        pending_applications = Candidature.objects.filter(statut='en_attente').count()
+        
+        stats = {
+            'totalUsers': total_users,
+            'totalCandidats': total_candidats,
+            'totalEntreprises': total_entreprises,
+            'totalJobs': total_jobs,
+            'totalApplications': total_applications,
+            'acceptedApplications': accepted_applications,
+            'rejectedApplications': rejected_applications,
+            'pendingApplications': pending_applications,
+            'activeJobs': active_jobs,
+            'inactiveJobs': inactive_jobs,
+            'totalViews': total_applications * 3 
+        }
+        
+        today = timezone.now()
+        user_growth = []
+        months = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"]
+        
+        for i in range(12):
+            start_date = today.replace(day=1) - timedelta(days=30*i)
+            end_date = start_date.replace(day=28) + timedelta(days=4)
+            end_date = end_date - timedelta(days=end_date.day)
+            
+            candidats = Candidat.objects.filter(date_joined__range=[start_date, end_date]).count()
+            entreprises = Recruteur.objects.filter(date_joined__range=[start_date, end_date]).count()
+            
+            user_growth.insert(0, {
+                'month': months[start_date.month - 1],
+                'candidats': candidats,
+                'entreprises': entreprises,
+                'total': candidats + entreprises
+            })
+        
+        application_status = [
+            {'name': 'En attente', 'value': pending_applications, 'color': '#f59e0b'},
+            {'name': 'Refusées', 'value': rejected_applications, 'color': '#ef4444'},
+            {'name': 'Acceptées', 'value': accepted_applications, 'color': '#10b981'}
+        ]
+        
+        contracts = Job.objects.values('type_contrat').annotate(count=Count('id')).order_by('-count')
+        total_contracts = sum(item['count'] for item in contracts)
+        
+        jobs_by_contract = []
+        for contract in contracts:
+            percentage = round((contract['count'] / total_contracts) * 100) if total_contracts > 0 else 0
+            jobs_by_contract.append({
+                'contract': contract['type_contrat'],
+                'count': contract['count'],
+                'percentage': percentage
+            })
+        
+        monthly_activity = []
+        for i in range(6):
+            start_date = today.replace(day=1) - timedelta(days=30*i)
+            end_date = start_date.replace(day=28) + timedelta(days=4)
+            end_date = end_date - timedelta(days=end_date.day)
+            
+            applications = Candidature.objects.filter(date_candidature__range=[start_date, end_date]).count()
+            jobs_created = Job.objects.filter(date_creation__range=[start_date, end_date]).count()
+            new_users = CustomUser.objects.filter(date_joined__range=[start_date, end_date]).count()
+            
+            monthly_activity.insert(0, {
+                'month': months[start_date.month - 1],
+                'applications': applications,
+                'jobsCreated': jobs_created,
+                'newUsers': new_users
+            })
+        
+        top_companies_data = (
+            Recruteur.objects
+            .annotate(
+                jobs_count=Count('jobs'),
+                applications_received=Count('jobs__candidatures')
+            )
+            .filter(jobs_count__gt=0)
+            .order_by('-applications_received')[:5]
+        )
+        
+        top_companies = []
+        for company in top_companies_data:
+            avg_views = company.applications_received * 5 
+            top_companies.append({
+                'company': company.nom_entreprise,
+                'jobsCount': company.jobs_count,
+                'applicationsReceived': company.applications_received,
+                'averageViews': avg_views
+            })
+        
+        dashboard_data = {
+            'stats': stats,
+            'userGrowth': user_growth,
+            'applicationStatus': application_status,
+            'jobsByContract': jobs_by_contract,
+            'monthlyActivity': monthly_activity,
+            'topCompanies': top_companies
+        }
+        
+        return Response(dashboard_data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Erreur dans admin_dashboard_stats: {str(e)}")
+        return Response(
+            {'detail': 'Erreur lors de la récupération des statistiques'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
