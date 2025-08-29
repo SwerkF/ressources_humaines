@@ -166,3 +166,81 @@ class Candidature(models.Model):
     
     def __str__(self):
         return f"{self.candidat.email} - {self.job.titre} - {self.get_statut_display()}"
+
+
+class CVAnalysis(models.Model):
+    """
+    Modèle pour stocker les résultats d'analyse IA des CV
+    """
+    candidature = models.OneToOneField(
+        Candidature,
+        on_delete=models.CASCADE,
+        related_name='ai_analysis'
+    )
+    
+    # Scores de pertinence (0.0 à 1.0)
+    overall_score = models.FloatField(
+        help_text='Score global de pertinence (0-1)',
+        null=True,
+        blank=True
+    )
+    skill_score = models.FloatField(
+        help_text='Score de pertinence des compétences (0-1)',
+        null=True,
+        blank=True
+    )
+    experience_score = models.FloatField(
+        help_text='Score de pertinence de l\'expérience (0-1)',
+        null=True,
+        blank=True
+    )
+    education_score = models.FloatField(
+        help_text='Score de pertinence de la formation (0-1)',
+        null=True,
+        blank=True
+    )
+    
+    # Informations extraites
+    skills_extracted = models.JSONField(
+        default=list,
+        help_text='Liste des compétences extraites du CV'
+    )
+    experience_extracted = models.JSONField(
+        default=list,
+        help_text='Informations d\'expérience extraites'
+    )
+    education_extracted = models.JSONField(
+        default=list,
+        help_text='Informations de formation extraites'
+    )
+    
+    # Métadonnées
+    analysis_date = models.DateTimeField(auto_now_add=True)
+    processing_time = models.FloatField(
+        help_text='Temps de traitement en secondes',
+        null=True,
+        blank=True
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'En cours'),
+            ('completed', 'Terminé'),
+            ('failed', 'Échoué'),
+        ],
+        default='pending'
+    )
+    error_message = models.TextField(
+        blank=True,
+        help_text='Message d\'erreur si l\'analyse a échoué'
+    )
+    
+    class Meta:
+        ordering = ['-analysis_date']
+        verbose_name = 'Analyse IA de CV'
+        verbose_name_plural = 'Analyses IA de CV'
+    
+    def __str__(self):
+        if self.overall_score is not None:
+            return f"Analyse {self.candidature} - Score: {self.overall_score:.2f}"
+        return f"Analyse {self.candidature} - {self.get_status_display()}"
