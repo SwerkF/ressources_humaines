@@ -87,6 +87,7 @@ class Job(models.Model):
     exigences = models.TextField(
         help_text='Compétences et qualifications requises'
     )
+    experience = models.CharField(max_length=100, blank=True, null=True)
     type_contrat = models.CharField(
         max_length=50,
         choices=[
@@ -112,6 +113,7 @@ class Job(models.Model):
         help_text='Salaire maximum en euros'
     )
     localisation = models.CharField(max_length=255)
+    keywords = models.JSONField(default=list, blank=True)
     date_creation = models.DateTimeField(auto_now_add=True)
     date_expiration = models.DateTimeField(
         help_text='Date limite pour postuler'

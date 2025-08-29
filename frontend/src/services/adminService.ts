@@ -7,11 +7,40 @@ import type {
     MonthlyActivityData,
     TopCompaniesData,
 } from "@/types/admin";
+import axiosService from "./axiosService";
 
 /**
- * Service pour générer des données d'administration simulées
+ * Service pour la gestion des données d'administration
  */
 export class AdminService {
+    /**
+     * Récupère toutes les données du dashboard admin depuis l'API
+     */
+    async getDashboardData(): Promise<AdminDashboardData> {
+        try {
+            const response = await axiosService.get<AdminDashboardData>('/admin/dashboard/stats/');
+            return response.data;
+        } catch (error) {
+            console.error('Erreur lors de la récupération des données du dashboard:', error);
+            // En cas d'erreur, on retourne des données simulées comme fallback
+            return this.generateFallbackData();
+        }
+    }
+
+    /**
+     * Génère des données de fallback en cas d'erreur API
+     */
+    private generateFallbackData(): AdminDashboardData {
+        return {
+            stats: this.generateStats(),
+            userGrowth: this.generateUserGrowth(),
+            applicationStatus: this.generateApplicationStatus(),
+            jobsByContract: this.generateJobsByContract(),
+            monthlyActivity: this.generateMonthlyActivity(),
+            topCompanies: this.generateTopCompanies(),
+        };
+    }
+
     /**
      * Génère des statistiques globales simulées
      */
@@ -131,23 +160,6 @@ export class AdminService {
                 averageViews: Math.floor(Math.random() * 100) + 80,
             }))
             .sort((a, b) => b.applicationsReceived - a.applicationsReceived);
-    }
-
-    /**
-     * Récupère toutes les données du dashboard admin
-     */
-    async getDashboardData(): Promise<AdminDashboardData> {
-        // Simulation d'un appel API
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
-        return {
-            stats: this.generateStats(),
-            userGrowth: this.generateUserGrowth(),
-            applicationStatus: this.generateApplicationStatus(),
-            jobsByContract: this.generateJobsByContract(),
-            monthlyActivity: this.generateMonthlyActivity(),
-            topCompanies: this.generateTopCompanies(),
-        };
     }
 
     /**
