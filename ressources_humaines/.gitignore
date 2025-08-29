@@ -8,3 +8,7 @@ __pycache__/
 *.pyzw
 *.pyzwz
 *.pyzwzw
+venv/
+.DS_Store
+db.sqlite3
+.env
